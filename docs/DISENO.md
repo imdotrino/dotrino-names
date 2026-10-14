@@ -172,7 +172,28 @@ app: comprueba el acta contra accountId (como hoy con el código)
   existen.
 - **30 días de gracia** después de `exp`: el nombre deja de resolver (`name-expired`) pero solo
   el dueño puede renovarlo. Pasado ese plazo, `expire` y queda libre.
-- **El pago va fuera del registro, y se cobra con PayPal** (dueño, 2026-10-14). El directorio
+- **Se puede pagar con todo lo posible** (dueño, 2026-10-14). Cada medio es un **adaptador**
+  con el mismo contrato: crea el cobro y lo confirma **del lado del directorio**. Todos acaban
+  en lo mismo, un recibo firmado (abajo); el registro no sabe con qué se pagó.
+
+  | Medio | Para quién | Notas |
+  |---|---|---|
+  | **PayPal** (el primero) | cualquiera, también con tarjeta sin cuenta de PayPal | detalle abajo |
+  | **PayPhone** | tarjetas de Ecuador | procesador local; API de botón de pago por redirección |
+  | **Bitcoin por Lightning** | quien tenga billetera | **BTCPay Server autohosteado**: sin intermediario y con comisión de céntimos, lo que mejor encaja con USD 0,99 |
+  | **Códigos prepagados** | quien no puede pagar en línea, regalos, transferencias | un código de un solo uso = N años; se venden por cualquier vía (transferencia bancaria, Ko-fi, en mano) y se canjean en la página |
+  | **App Store / Google Play** | solo dentro de las apps nativas | las tiendas **obligan** a usar su compra integrada para bienes digitales y se quedan un 15 %; fuera de ellas, nunca |
+
+  Por qué no otros: **Stripe** no da de alta empresas de Ecuador (comprobarlo antes de
+  descartarlo del todo); la **transferencia bancaria directa** obliga a conciliar a mano cada
+  cobro de USD 1,14, así que entra por los códigos prepagados. Medios locales con QR (p. ej.
+  Deuna) se suman si exponen una API de confirmación; si no, por códigos.
+
+- **Ningún medio carga JavaScript de terceros** en la página: todos van por redirección
+  (PayPal, PayPhone), por factura que paga la billetera del usuario (Lightning, servida por
+  nuestro propio BTCPay) o por canje (códigos). Las compras de tienda viven en la app nativa.
+- **El IVA y la factura del SRI van igual con cualquier medio**, Bitcoin incluido.
+- **PayPal** (dueño, 2026-10-14). El directorio
   emite un **recibo firmado** de un solo uso cuando el cobro se confirma. `claim` y `renew`
   solo entran con un recibo válido. En el registro solo queda el hash del recibo.
 - **Cómo se cobra, sin JavaScript de PayPal en la página** (la regla de nada de JS de
@@ -222,5 +243,6 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 - Nombres en otros alfabetos.
 - La lista de exclusión de pares ofensivos.
+- Orden de los adaptadores de pago después de PayPal, y confirmar Stripe y Deuna.
 - Anclaje en Bitcoin (OpenTimestamps).
 - Política escrita de `seize` (marcas, órdenes judiciales) antes de abrir el servicio.
