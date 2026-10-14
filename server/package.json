@@ -1,0 +1,22 @@
+{
+  "name": "@dotrino/names-server",
+  "version": "0.1.0",
+  "description": "El servidor del directorio de nombres de Dotrino (names.dotrino.com).",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "bin": { "dotrino-names": "./server.js" },
+  "scripts": {
+    "start": "node server.js serve",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@dotrino/identity": "0.111.0",
+    "@dotrino/names": "file:..",
+    "@dotrino/remote-agent": "0.18.0",
+    "@dotrino/update": "0.7.0",
+    "@dotrino/vault": "0.82.1",
+    "@dotrino/verifier": "file:../../dotrino-verifier"
+  },
+  "engines": { "node": ">=22.13" }
+}

@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Identity } from '@dotrino/identity/node'
-import { AUDIENCE, FORMAT_V, REQUEST_TTL_MS, RECEIPT_TTL_MS, applyEntry, emptyState, Segment, checkpointBody, accountId, pubkeyId } from '../src/index.js'
+import { AUDIENCE, FORMAT_V, REQUEST_TTL_MS, RECEIPT_TTL_MS, applyEntry, emptyState, Segment, checkpointBody, accountId, pubkeyId, stateRoot } from '../src/index.js'
 
 const dirs = []
 const ids = []
@@ -51,7 +51,7 @@ export async function registry ({ dir, authorities = [] }) {
       return entry
     },
     async checkpoint (ts) { return sign(dir, await checkpointBody({ segment: r.segment, state: r.state, ts })) },
-    async head (ts) { return sign(dir, await r.segment.headBody(ts)) }
+    async head (ts) { return sign(dir, await r.segment.headBody(ts, await stateRoot(r.state))) }
   }
   return r
 }

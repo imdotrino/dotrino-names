@@ -91,6 +91,9 @@ export function addressCandidates (input) {
     tryOne(full, null)
     const [sub, ...rest] = full.split('.')
     if (rest.length >= 2 && isLabel(sub, 1, 32) && !(rest.join('.') === DOMAIN)) tryOne(rest.join('.'), sub)
+    // `laptop.blue-cat`, escrito corto: el aparato `laptop` de `blue-cat.dotrino.com`. Va
+    // después de leerlo como dominio real, que es lo que dice tal cual.
+    if (rest.length === 1 && isLabel(sub, 1, 32)) tryOne(`${rest[0]}.${DOMAIN}`, sub)
   }
   if (!out.length) throw bad(input)
   return out

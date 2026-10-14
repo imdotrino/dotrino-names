@@ -248,3 +248,11 @@ test('un subdominio por aparato: solo uno del acta, y se resuelve con el corte',
   await r.add({ op: 'transfer', ts, h, account: beto.account, exp: rec.exp, kind: 'native', reqs: [await req(ana, ts, { op: 'transfer', h, to: beto.account }), await req(beto, ts, { op: 'accept', h, from: ana.account })] })
   assert.equal(r.state.names.get(h).subs, undefined)
 })
+
+test('resolver contra la cabecera de ahora: lleva la raíz del estado vigente', async () => {
+  const r = await registry({ dir })
+  await claim(r, ana, 'ana')
+  const head = await r.head(T0)
+  const got = await verifyResolution({ address: 'ana', response: { name: 'ana.dotrino.com', head, state: await stateProof(r.state, await nameHash('ana')) }, policy: r.policy, now: T0 })
+  assert.equal(got.account, ana.account)
+})

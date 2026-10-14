@@ -22,6 +22,10 @@ test('un aparato va delante, y con un dominio real hay que preguntar las dos lec
   assert.deepEqual(addressCandidates('laptop.blue-cat.dotrino.com'), [{ name: 'blue-cat.dotrino.com', sub: 'laptop' }])
   assert.deepEqual(addressCandidates('laptop.empresa.com'), [{ name: 'laptop.empresa.com', sub: null }, { name: 'empresa.com', sub: 'laptop' }])
   assert.deepEqual(addressCandidates('blue-cat'), [{ name: 'blue-cat.dotrino.com', sub: null }])
+  // Escrito corto con aparato. `laptop.blue-cat` no puede ser un dominio real (un TLD no lleva
+  // guion), así que solo queda una lectura; `laptop.beto` sí podría serlo y se prueban las dos.
+  assert.deepEqual(addressCandidates('laptop.blue-cat'), [{ name: 'blue-cat.dotrino.com', sub: 'laptop' }])
+  assert.deepEqual(addressCandidates('laptop.beto'), [{ name: 'laptop.beto', sub: null }, { name: 'beto.dotrino.com', sub: 'laptop' }])
 })
 
 test('el hash no depende de mayúsculas ni espacios', async () => {

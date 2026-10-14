@@ -64,9 +64,14 @@ export class Segment {
 
   consistency (oldSize) { return consistencyProof(oldSize, this.leaves) }
 
-  /** La cabecera del tramo abierto, sin firmar: la firma el directorio con su identidad. */
-  async headBody (ts) {
-    return { v: FORMAT_V, aud: AUDIENCE, kind: 'head', n: this.n, firstSeq: this.firstSeq, size: this.size, root: await this.root(), ts }
+  /**
+   * La cabecera del tramo abierto, sin firmar: la firma el directorio con su identidad. Lleva
+   * la raíz del ESTADO de ahora (`stateRoot`), para que una respuesta se pruebe contra el estado
+   * vigente y no contra el corte del mes pasado. El testigo la comprueba al cerrar el tramo.
+   */
+  async headBody (ts, stateRoot) {
+    if (!/^[0-9a-f]{64}$/.test(stateRoot || '')) throw new TypeError('headBody: stateRoot is required')
+    return { v: FORMAT_V, aud: AUDIENCE, kind: 'head', n: this.n, firstSeq: this.firstSeq, size: this.size, root: await this.root(), stateRoot, ts }
   }
 }
 

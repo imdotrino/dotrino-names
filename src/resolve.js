@@ -3,9 +3,11 @@
  * y lo puede hacer cualquier cliente.
  *
  * La respuesta dice a qué nombre contesta (`name`, completo) y, si se preguntó por un aparato,
- * cuál (`sub`). Viene de una de dos formas:
- *   · el nombre está en el ÚLTIMO CORTE: `{ checkpoint, state: { index, size, leaf, proof } }`;
- *   · el nombre cambió después: `{ head, entry, inclusion: { index, size, proof } }`.
+ * cuál (`sub`). Viene de una de tres formas:
+ *   · contra la CABECERA de ahora, que firma la raíz del estado vigente:
+ *     `{ head, state: { index, size, leaf, proof } }` (la normal);
+ *   · contra un CORTE: `{ checkpoint, state }`;
+ *   · por la entrada que lo cambió: `{ head, entry, inclusion: { index, size, proof } }`.
  *
  * Que un nombre NO exista no se puede probar con esto: el directorio puede negar (lo dice el
  * diseño). Lo que no puede es inventar a quién apunta sin que la firma o la prueba fallen.
@@ -43,8 +45,10 @@ export async function verifyResolution ({ address, response, policy, now }) {
     // Una entrada solo trae los aparatos que ella misma cambia: para otro, hace falta el corte.
     if (sub !== null && !(entry.op === 'sub' && entry.sub === sub)) fail('bad-resolution', 'this entry does not say where that device is')
     rec = { account: entry.account, exp: entry.exp, free: !!entry.free, kind: entry.kind, subs: sub !== null && entry.device ? { [sub]: entry.device } : {} }
-  } else if (response.checkpoint) {
-    const cp = await verifyDirectorySigned(response.checkpoint, { policy, kind: 'checkpoint', now })
+  } else if (response.checkpoint || response.head) {
+    const cp = response.checkpoint
+      ? await verifyDirectorySigned(response.checkpoint, { policy, kind: 'checkpoint', now })
+      : await verifyDirectorySigned(response.head, { policy, kind: 'head', now })
     const s = response.state
     if (s?.leaf?.h !== h) fail('bad-resolution', 'state leaf is for another name')
     const leaf = await leafHash(enc.encode(canonicalStringify(stateLeafData(h, s.leaf))))
