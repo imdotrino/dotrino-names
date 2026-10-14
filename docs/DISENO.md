@@ -180,9 +180,12 @@ app: comprueba el acta contra accountId (como hoy con el código)
   |---|---|---|
   | **PayPal** (el primero) | cualquiera, también con tarjeta sin cuenta de PayPal | detalle abajo |
   | **PayPhone** | tarjetas de Ecuador | procesador local; API de botón de pago por redirección |
-  | **Bitcoin por Lightning** | quien tenga billetera | **BTCPay Server autohosteado**: sin intermediario y con comisión de céntimos, lo que mejor encaja con USD 0,99 |
+  | **Bitcoin por Lightning** (el segundo) | quien tenga billetera | **BTCPay Server autohosteado**: sin intermediario y con comisión de céntimos, lo que mejor encaja con USD 0,99 |
   | **Códigos prepagados** | quien no puede pagar en línea, regalos, transferencias | un código de un solo uso = N años; se venden por cualquier vía (transferencia bancaria, Ko-fi, en mano) y se canjean en la página |
   | **App Store / Google Play** | solo dentro de las apps nativas | las tiendas **obligan** a usar su compra integrada para bienes digitales y se quedan un 15 %; fuera de ellas, nunca |
+
+  **Orden** (dueño, 2026-10-14): **PayPal, luego Lightning**; los demás después, sin orden
+  fijado.
 
   Por qué no otros: **Stripe** no da de alta empresas de Ecuador (comprobarlo antes de
   descartarlo del todo); la **transferencia bancaria directa** obliga a conciliar a mano cada
@@ -243,6 +246,6 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 - Nombres en otros alfabetos.
 - La lista de exclusión de pares ofensivos.
-- Orden de los adaptadores de pago después de PayPal, y confirmar Stripe y Deuna.
+- Orden de los medios de pago después de PayPal y Lightning, y confirmar Stripe y Deuna.
 - Anclaje en Bitcoin (OpenTimestamps).
 - Política escrita de `seize` (marcas, órdenes judiciales) antes de abrir el servicio.
