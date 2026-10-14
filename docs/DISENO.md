@@ -131,7 +131,7 @@ app: comprueba el acta contra accountId (como hoy con el código)
   `english_dictionary.db`, solo `a-z` y de 3 a 10 letras. Contado el 2026-10-14: **1 850
   sustantivos × 547 adjetivos ≈ 1 012 000 pares** (con ≥ 8 serían 94 000, poco). Fuera nombres
   propios, siglas y una lista de exclusión de palabras y pares ofensivos o sensibles.
-- **Cuando queden pocos pares libres**, se añade un número detrás (`gato-azul-7`) en vez de
+- **Cuando queden pocos pares libres**, se añade un número detrás (`blue-cat-7`) en vez de
   agrandar las listas con palabras raras.
 - **La lista viaja con el código** (§14 de CONVENCIONES): se copia a este repo, con su
   versión, en vez de leerse de `/mnt/sda1/dns`.
