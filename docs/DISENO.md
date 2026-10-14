@@ -135,8 +135,9 @@ app: comprueba el acta contra accountId (como hoy con el código)
   **sin categoría gramatical**, que hay que sacar del diccionario de la RAE.
 - **Cuando queden pocos pares libres**, se añade un número detrás (`gato-azul-7`) en vez de
   agrandar las listas con palabras raras.
-- **No vence y no se traspasa.** Es el nombre de la cuenta mientras exista; no hay nada que
-  renovar ni que vender. Quien quiere otro, lo paga (§5.2), y el gratuito se le queda igual.
+- **No se cambia, no vence y no se traspasa** (dueño, 2026-10-14). Sale una vez y es el
+  nombre de la cuenta mientras exista: no hay «dame otro», ni nada que renovar ni que vender.
+  Así nadie puede ir pidiendo pares hasta dar con uno que le guste, que sería elegir gratis. Quien quiere otro, lo paga (§5.2), y el gratuito se le queda igual.
 
 ### 5.2. El nombre pagado
 
