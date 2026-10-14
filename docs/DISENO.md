@@ -166,8 +166,8 @@ app: comprueba el acta contra accountId (como hoy con el código)
 - **Se paga por año.** `claim` y `renew` dan 12 meses.
 - **La comisión fija del procesador pesa mucho con un precio así**: un cobro de PayPal lleva
   una parte fija del orden de USD 0,30–0,49, casi la mitad de lo que se cobra. Por eso se
-  pueden **pagar varios años de una vez** (`renew` con `years`, hasta 5), y la página lo
-  ofrece. Cada cobro lleva además su factura electrónica del SRI.
+  pueden **pagar varios años de una vez** (`claim` y `renew` con `years`), **sin tope**
+  (dueño, 2026-10-14), y la página lo ofrece. Cada cobro lleva además su factura electrónica del SRI.
 - **Aviso antes de vencer**: a los aparatos del acta, 30 y 7 días antes, por los avisos que ya
   existen.
 - **30 días de gracia** después de `exp`: el nombre deja de resolver (`name-expired`) pero solo
