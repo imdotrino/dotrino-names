@@ -46,7 +46,7 @@ cambiar el historial sin que los testigos lo vean.*
 
 ### 3.1. Las entradas
 
-El registro es de **solo añadir**. Cada entrada lleva `seq`, `prev` (hash de la anterior),
+El registro es de **solo añadir** dentro de cada tramo (lo viejo se poda, §3.4). Cada entrada lleva `seq`, `prev` (hash de la anterior),
 `ts` y `op`:
 
 | `op` | Qué dice | Firmado por |
@@ -89,6 +89,31 @@ pruebas:
 - **Anclaje externo:** la raíz del día se sella en `dotrino-signer` (prueba de cuándo).
   Anclarla también en Bitcoin con OpenTimestamps, que es gratis y no pide nada al usuario,
   queda como pendiente.
+
+### 3.4. El historial caduca: cortes y poda
+
+> Dueño, 2026-10-14: *«es una especie de blockchain con caducidad»*. Caducan los nombres
+> (§6) **y también el historial**, para que el registro se quede pequeño.
+
+- **Un corte por mes.** El directorio cierra el tramo del mes y firma un **corte**:
+  `{ n, prev, stateRoot, segmentRoot, ts }`.
+  - `stateRoot` es la raíz de Merkle del **estado vivo**: cada `h` con su cuenta, su `exp` y
+    si es gratuito, ordenado por `h`. Es lo único que hace falta para resolver.
+  - `segmentRoot` es la raíz del tramo de entradas de ese mes (§3.2).
+  - `prev` es el hash del corte anterior: **los cortes forman la cadena**.
+- **Los testigos validan cada corte antes de cofirmarlo**: aplican el tramo al estado del
+  corte anterior y comprueban que sale el mismo `stateRoot`. Un corte cofirmado dice «este
+  estado sale de aplicar estas entradas, y lo vi». El corte se sella en `dotrino-signer`.
+- **Se poda lo de más de 12 meses.** Los tramos de entradas más viejos que eso se borran, del
+  directorio y de los testigos. **Los cortes no se borran nunca**: ocupan unos cientos de
+  bytes cada uno, y son lo que permite comprobar que la cadena sigue sin huecos.
+- **Lo que se gana**: el registro guarda el estado vivo y un año de movimientos, no toda la
+  historia. Un nombre vencido y liberado deja de constar al año.
+- **Lo que se pierde, dicho**: pasado un año ya no se puede ver *cómo* llegó un nombre a su
+  dueño, solo que los testigos de entonces dieron por bueno cada paso. Un `seize` (§3.1) se ve
+  durante ese año y después solo queda su efecto.
+- **Resolver no cambia**: la respuesta lleva la prueba de inclusión del nombre en el último
+  corte y, si cambió después, la de la entrada del tramo abierto.
 
 ## 4. Resolver
 
