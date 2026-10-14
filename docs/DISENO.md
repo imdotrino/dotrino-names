@@ -362,7 +362,12 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 - Nombres en otros alfabetos.
 - La lista de exclusión de pares ofensivos.
-- La comprobación del TXT en el servidor, extendiendo `@dotrino/verifier`.
+- Publicar `@dotrino/names` (primer publish a mano) y `@dotrino/verifier` 0.3.0 (falta declarar
+  la publicación de confianza en npm: el run de CI dio 404).
+- Desplegar el servidor: DNS de `names.dotrino.com` → proxy2, enrolar el aparato `names`,
+  credencial de PayPal en el cajón `names`, nginx + certbot (`DEPLOY.md`).
+- El proxio: op `resolve-name` con caché y verificación, y el testigo de cortes (§3.3).
+- El pilar: `resolveName` y la señal de vida semanal (§5.1).
 - Orden de los medios de pago después de PayPal y Lightning, y confirmar Stripe y Deuna.
 - Anclaje en Bitcoin (OpenTimestamps).
 - Los criterios escritos con los que una autoridad decide un `seize` (qué marca, qué orden), publicados antes de abrir el servicio. El mecanismo ya está (§3.1).

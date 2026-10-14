@@ -8,8 +8,11 @@ o un dominio tuyo como `empresa.com`) al id de una cuenta (`AB12-CD34-EF56…`),
 Lo resuelve el proxio. Una cuenta puede pedir gratis un nombre generado (adjetivo + sustantivo en
 inglés, `blue-cat`), que caduca tras un mes sin actividad; elegir uno propio se paga, por año.
 
-**Estado:** el núcleo (`@dotrino/names` 0.1.0, sin publicar) está hecho y probado; faltan el
-servidor, el cobro, el proxio y la página. El diseño está en [`docs/DISENO.md`](./docs/DISENO.md).
+**Estado:** el núcleo (`@dotrino/names` 0.1.0, sin publicar) y el servidor (`server/`, con el
+cobro por PayPal y la prueba de dominio por TXT) están hechos y probados; el servidor está
+clonado en proxy2 sin arrancar (falta enrolarlo, el DNS y la credencial de PayPal:
+[`DEPLOY.md`](./DEPLOY.md)). Faltan el proxio (resolver + testigo), el pilar (`resolveName`,
+la señal de vida) y la página. El diseño está en [`docs/DISENO.md`](./docs/DISENO.md).
 
 ## El núcleo
 
