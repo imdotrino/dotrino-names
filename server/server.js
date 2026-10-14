@@ -23,14 +23,17 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 const log = (...a) => console.log(new Date().toISOString(), ...a)
 const [cmd = 'serve', arg] = process.argv.slice(2)
 
+// Un fallo con código se dice en una línea, no con una pila: «not enrolled» es un estado, no un bug.
+const die = (e) => { console.error(`dotrino-names: ${e.message}${e.code ? ` (${e.code})` : ''}`); process.exit(1) }
+
 if (cmd === 'info') {
-  console.log(await info({ json: process.argv.includes('--json') }))
+  console.log(await info({ json: process.argv.includes('--json') }).catch(die))
 } else if (cmd === 'enroll') {
   if (!arg) { console.error('usage: dotrino-names enroll <invite>'); process.exit(2) }
-  const link = await enrollDirectory(arg)
+  const link = await enrollDirectory(arg).catch(die)
   console.log(`enrolled as a device of the directory account (${link.iss.slice(0, 16)}…)`)
 } else if (cmd === 'serve') {
-  const identity = await loadDirectoryIdentity({ log })
+  const identity = await loadDirectoryIdentity({ log }).catch(die)
   const store = new Store(process.env.NAMES_DB || 'names.db')
   const publicUrl = process.env.NAMES_PUBLIC_URL || 'https://names.dotrino.com'
   const directory = await Directory.open({
