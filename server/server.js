@@ -24,7 +24,7 @@ const log = (...a) => console.log(new Date().toISOString(), ...a)
 const [cmd = 'serve', arg] = process.argv.slice(2)
 
 if (cmd === 'info') {
-  console.log(info({ json: process.argv.includes('--json') }))
+  console.log(await info({ json: process.argv.includes('--json') }))
 } else if (cmd === 'enroll') {
   if (!arg) { console.error('usage: dotrino-names enroll <invite>'); process.exit(2) }
   const link = await enrollDirectory(arg)

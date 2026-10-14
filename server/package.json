@@ -5,18 +5,22 @@
   "license": "MIT",
   "type": "module",
   "private": true,
-  "bin": { "dotrino-names": "./server.js" },
+  "bin": {
+    "dotrino-names": "./server.js"
+  },
   "scripts": {
     "start": "node server.js serve",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@dotrino/identity": "0.111.0",
+    "@dotrino/identity": "0.112.0",
     "@dotrino/names": "file:..",
-    "@dotrino/remote-agent": "0.18.0",
+    "@dotrino/remote-agent": "0.19.0",
     "@dotrino/update": "0.7.0",
-    "@dotrino/vault": "0.82.1",
+    "@dotrino/vault": "0.84.0",
     "@dotrino/verifier": "file:../../dotrino-verifier"
   },
-  "engines": { "node": ">=22.13" }
+  "engines": {
+    "node": ">=22.13"
+  }
 }

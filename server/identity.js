@@ -20,8 +20,11 @@ export async function enrollDirectory (invite, { dir = identityDir() } = {}) {
   return enroll({ qr: invite, dir, label: LABEL, ns: NS })
 }
 
-export function info ({ dir = identityDir(), json = false } = {}) {
-  const i = deviceInfo({ dir })
+/** Qué aparato es (CONVENCIONES §15.1): el ID primero. Sin red, del enlace del disco. */
+export async function info ({ dir = identityDir(), json = false } = {}) {
+  const link = loadLink(dir)
+  if (!link?.device?.publickey) throw Object.assign(new Error(`not enrolled (dir ${dir})`), { code: 'not-enrolled' })
+  const i = await deviceInfo(link, { kind: 'names', name: LABEL, ns: NS, dir })
   return json ? JSON.stringify(i, null, 2) : formatDeviceInfo(i)
 }
 
