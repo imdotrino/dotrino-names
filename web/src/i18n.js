@@ -46,7 +46,8 @@ export const messages = {
       claimed: (n) => `Listo: ${n} es tuyo.`,
       renewed: (n) => `Listo: ${n} renovado.`,
       lost: 'Volviste de PayPal pero no encontramos qué estabas pagando. Si te cobraron, escríbenos.',
-      failed: 'El pago no se completó.'
+      failed: 'El pago no se completó.',
+      retry: 'Volver a PayPal'
     },
     name: {
       free: 'gratis', paid: 'reservado', domain: 'tu dominio', held: 'caducado, guardado para ti hasta',
@@ -67,6 +68,7 @@ export const messages = {
       'domain-check-failed': 'No se pudo consultar el DNS de ese dominio. Inténtalo más tarde.',
       'payments-unavailable': 'El pago todavía no está disponible.',
       'payment-not-completed': 'El pago no se completó.',
+      'payment-declined': 'PayPal no aceptó esa forma de pago. Elige otra.',
       'too-many-subs': 'Ya tienes el máximo de aparatos con nombre.',
       'not-a-member': 'Ese aparato no está en tu cuenta.',
       'free-name-fixed': 'Un nombre gratis no se puede soltar ni renovar.',
@@ -113,7 +115,8 @@ export const messages = {
       claimed: (n) => `Done: ${n} is yours.`,
       renewed: (n) => `Done: ${n} renewed.`,
       lost: 'You came back from PayPal but we could not find what you were paying for. If you were charged, write to us.',
-      failed: 'The payment did not complete.'
+      failed: 'The payment did not complete.',
+      retry: 'Back to PayPal'
     },
     name: {
       free: 'free', paid: 'reserved', domain: 'your domain', held: 'expired, kept for you until',
@@ -134,6 +137,7 @@ export const messages = {
       'domain-check-failed': 'Could not query that domain’s DNS. Try again later.',
       'payments-unavailable': 'Payments are not available yet.',
       'payment-not-completed': 'The payment did not complete.',
+      'payment-declined': 'PayPal did not accept that payment method. Pick another one.',
       'too-many-subs': 'You already have the maximum of named devices.',
       'not-a-member': 'That device is not in your account.',
       'free-name-fixed': 'A free name cannot be released or renewed.',

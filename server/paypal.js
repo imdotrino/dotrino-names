@@ -21,7 +21,15 @@ export function paypalClient ({ clientId, secret, live = false, fetch = globalTh
     const text = await res.text()
     let data = null
     try { data = text ? JSON.parse(text) : null } catch (_) { data = { raw: text } }
-    if (!res.ok) throw Object.assign(new Error(`paypal ${method} ${path}: ${res.status} ${data?.name || ''} ${data?.message || ''}`.trim()), { code: 'paypal-error', status: res.status })
+    if (!res.ok) {
+      // PayPal pone el motivo real en `details[].issue` (INSTRUMENT_DECLINED, ORDER_NOT_APPROVED…);
+      // `message` es siempre la misma frase genérica. Un rechazo del medio de pago es del
+      // comprador, no del servidor: lleva su propio código para que la página lo diga y
+      // le mande de vuelta a PayPal a elegir otro.
+      const issue = data?.details?.[0]?.issue || null
+      const declined = issue === 'INSTRUMENT_DECLINED'
+      throw Object.assign(new Error(`paypal ${method} ${path}: ${res.status} ${issue || data?.name || ''} ${declined ? '' : data?.message || ''}`.trim()), { code: declined ? 'payment-declined' : 'paypal-error', issue, status: res.status })
+    }
     return data
   }
 

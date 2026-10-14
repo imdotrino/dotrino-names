@@ -56,6 +56,7 @@ const names = ref([])
 const busy = ref(false)
 const notice = ref(null) // { kind: 'ok' | 'error', text }
 const say = (kind, text) => { notice.value = { kind, text } }
+const retryUrl = ref(null) // PayPal rechazó el medio de pago: el mismo pedido, a elegir otro
 const errorText = (e) => t.value.errors[e?.code] || (e instanceof ApiError ? e.message : null) || t.value.errors.generic
 
 const fmtDate = (ts) => new Intl.DateTimeFormat(lang.value, { dateStyle: 'medium' }).format(new Date(ts))
@@ -78,6 +79,7 @@ async function loadMine () {
 async function act (fn) {
   busy.value = true
   notice.value = null
+  retryUrl.value = null
   try { await fn(); await loadMine() } catch (e) { console.warn('[names]', e); say('error', errorText(e)) } finally { busy.value = false }
 }
 
@@ -142,7 +144,7 @@ const canPay = computed(() => check.value?.available && price.value && !busy.val
 async function checkout (action, name, y) {
   await act(async () => {
     const r = await post('/checkout', { years: y })
-    try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ orderId: r.orderId, name, years: y, action })) } catch (_) {}
+    try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ orderId: r.orderId, name, years: y, action, approveUrl: r.approveUrl })) } catch (_) {}
     location.href = r.approveUrl
   })
 }
@@ -158,7 +160,13 @@ async function finishPayment () {
   if (!pending || pending.orderId !== token) { say('error', t.value.paid.lost); return }
   say('ok', t.value.paid.working)
   await act(async () => {
-    const receipt = await post('/capture', { orderId: token })
+    let receipt
+    try { receipt = await post('/capture', { orderId: token }) } catch (e) {
+      // El medio de pago no pasó: el pedido sigue vivo en PayPal y se vuelve a él con otro.
+      // El cobro a medias se queda guardado para esa vuelta.
+      if (e?.code === 'payment-declined' && pending.approveUrl) { retryUrl.value = pending.approveUrl; try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending)) } catch (_) {} }
+      throw e
+    }
     const h = await nameHash(pending.name)
     if (pending.action === 'renew') {
       const req = await signedRequest(identity.value, { op: 'renew', h })
@@ -206,7 +214,8 @@ onMounted(async () => {
     </section>
 
     <template v-else>
-      <p v-if="notice" :class="['notice', notice.kind]" data-testid="notice" role="status">{{ notice.text }}</p>
+      <p v-if="notice" :class="['notice', notice.kind]" data-testid="notice" role="status">{{ notice.text }}
+        <a v-if="retryUrl" :href="retryUrl" class="btn" data-testid="retry-paypal">{{ t.paid.retry }}</a></p>
 
       <section class="card" data-testid="mine">
         <h2>{{ t.mine.title }} <button class="btn small ghost" :disabled="busy" @click="act(async () => {})" data-testid="refresh">{{ t.mine.refresh }}</button></h2>
