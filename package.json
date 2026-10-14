@@ -1,0 +1,37 @@
+{
+  "name": "@dotrino/names",
+  "version": "0.1.0",
+  "description": "Directorio de nombres de Dotrino: el núcleo (reglas, registro de transparencia con caducidad, nombres gratuitos) sin red.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@dotrino/identity": ">=0.111.0"
+  },
+  "devDependencies": {
+    "@dotrino/identity": "0.111.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imdotrino/dotrino-names.git"
+  },
+  "keywords": [
+    "dotrino",
+    "names",
+    "transparency-log",
+    "merkle"
+  ]
+}

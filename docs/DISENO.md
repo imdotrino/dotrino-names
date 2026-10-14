@@ -125,6 +125,21 @@ pruebas:
 - **Resolver no cambia**: la respuesta lleva la prueba de inclusión del nombre en el último
   corte y, si cambió después, la de la entrada del tramo abierto.
 
+### 3.5. Lo que el núcleo ya fija (0.1.0)
+
+- **La cuenta es el `profileId` del pilar** (lo que devuelve `signData` y compara
+  `verifySignedFor`), no una abreviatura: la comprobación del acta se hace contra eso mismo.
+- **Toda firma se comprueba con `@dotrino/identity/assertion`** (`verifySignedFor`, con
+  `aud = https://names.dotrino.com`): miembro con `sign` del acta de esa cuenta, y para este
+  servicio. Peticiones, recibos, cabeceras y cortes, todo por el mismo camino.
+- **Una entrada que no vale no toca el estado**: primero se comprueba todo, después se escribe.
+- **Antirrepetición**: cada petición lleva `nonce` y caduca en un día; cada recibo, en 30. Lo
+  usado se recuerda hasta que caduca. Ese recuerdo **no entra en la raíz del estado**, así que
+  un testigo que empieza en un corte sin el tramo anterior no lo tiene; con 12 tramos guardados
+  y caducidades de un día y 30 días, el que repite desde el tramo anterior sí lo tiene.
+- **La política de producción (`src/policy.js`) está vacía**: falta el id de la cuenta de
+  Dotrino. Mientras tanto todo para con `no-policy`, que es lo que tiene que pasar.
+
 ## 4. Resolver
 
 ```
@@ -163,9 +178,11 @@ app: comprueba el acta contra accountId (como hoy con el código)
   (a medio puntuar y sin categoría gramatical) se descarta.
 - **Palabras comunes solamente**: las de popularidad ≥ 7 de la lista del dueño
   (`/mnt/sda1/dns/en`, `seyacat/dns`, escala 0–10), con la categoría gramatical de
-  `english_dictionary.db`, solo `a-z` y de 3 a 10 letras. Contado el 2026-10-14: **1 850
-  sustantivos × 547 adjetivos ≈ 1 012 000 pares** (con ≥ 8 serían 94 000, poco). Fuera nombres
-  propios, siglas y una lista de exclusión de palabras y pares ofensivos o sensibles.
+  `english_dictionary.db`, solo `a-z` y de 3 a 10 letras. Sin plurales (`cats` sobra si está `cat`) y fuera
+  una lista de exclusión (`src/words/exclude.json`): palabras ofensivas o sensibles, personas y
+  parentescos (para que ningún adjetivo caiga sobre alguien), palabras de función. Quedan
+  **442 adjetivos × 1 075 sustantivos ≈ 475 000 pares** (2026-10-14). Las genera
+  `scripts/build-words.py`.
 - **Cuando queden pocos pares libres**, se añade un número detrás (`blue-cat-7`) en vez de
   agrandar las listas con palabras raras.
 - **La lista viaja con el código** (§14 de CONVENCIONES): se copia a este repo, con su
@@ -281,6 +298,7 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 - Nombres en otros alfabetos.
 - La lista de exclusión de pares ofensivos.
+- El id de la cuenta de Dotrino en `src/policy.js` (directorio y autoridad).
 - Orden de los medios de pago después de PayPal y Lightning, y confirmar Stripe y Deuna.
 - Anclaje en Bitcoin (OpenTimestamps).
 - Los criterios escritos con los que una autoridad decide un `seize` (qué marca, qué orden), publicados antes de abrir el servicio. El mecanismo ya está (§3.1).
