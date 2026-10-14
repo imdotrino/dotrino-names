@@ -18,9 +18,10 @@
   equivocada). Y desviar no es mudo: para cambiar a quién apunta un nombre hace falta una
   entrada en el registro, que los testigos ven (§3), y el cliente **recuerda a qué cuenta
   resolvió cada nombre** y avisa si cambia.
-- **Toda cuenta tiene nombre, gratis** (dueño, 2026-10-14): el directorio le asigna uno
-  generado, un **adjetivo y un sustantivo en inglés** (`blue-cat`), §5.1. **Pagando, se elige** el que
-  uno quiera (§5.2). La cuenta sigue funcionando entera con su código sin ninguno de los dos.
+- **Un nombre gratuito, si se pide** (dueño, 2026-10-14): tener perfil **no** da nombre. La
+  cuenta lo **solicita** (una petición firmada, `claim-free`) y el directorio le asigna uno
+  generado, un **adjetivo y un sustantivo en inglés** (`blue-cat`), §5.1. **Pagando, se elige** el
+  que uno quiera (§5.2). La cuenta sigue funcionando entera con su código sin ninguno de los dos.
 
 ## 2. Por qué no una blockchain pública ni un token
 
@@ -172,7 +173,9 @@ app: comprueba el acta contra accountId (como hoy con el código)
   cuenta que caiga en el par de otro en segundos. Así que el nombre gratuito es una entrada
   `claim` más, con `free: true` y sin recibo, y **la seguridad la sigue dando el acta contra
   el id completo**, como con el nombre pagado.
-- **Se elige al azar entre los pares libres**, uno por cuenta, al pedirlo por primera vez. El
+- **Solo a quien lo pide**: lo solicita el usuario, a propósito, desde la página o desde una app
+  (`claim-free` firmado). Nada lo pide solo: ni el pilar al identificarse ni una app al abrirse.
+- **Se elige al azar entre los pares libres**, uno por cuenta. El
   directorio puede limitar cuántos asigna por origen para que nadie se los lleve todos.
 - **Solo en inglés** (dueño, 2026-10-14): `blue-cat`, adjetivo y sustantivo, en ese orden.
   Una lista para todos, sin concordancia de género y en ASCII de por sí. La lista española
@@ -194,7 +197,8 @@ app: comprueba el acta contra accountId (como hoy con el código)
 - **Caduca tras un mes sin actividad** (dueño, 2026-10-14). El directorio no ve quién usa un
   nombre (las consultas le llegan por el proxio), así que la actividad la **prueba la cuenta**:
   una **señal de vida firmada** (`touch`) por cualquier aparato de su acta. La manda **el
-  pilar, solo** (`@dotrino/proxy-client`, tras `identify`), como mucho una vez por semana:
+  pilar, solo** (`@dotrino/proxy-client`, tras `identify`), **solo si la cuenta tiene un
+  nombre gratuito**, como mucho una vez por semana:
   ninguna app hace nada y el usuario tampoco. 30 días sin señal y cualquiera puede escribir el
   `expire`, que entra solo si de verdad pasaron.
 - **Caducado, queda guardado 6 meses para su cuenta**: no resuelve y nadie más lo toma. Si la
