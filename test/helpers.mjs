@@ -3,19 +3,19 @@ import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Identity } from '@dotrino/identity/node'
-import { AUDIENCE, FORMAT_V, REQUEST_TTL_MS, RECEIPT_TTL_MS, applyEntry, emptyState, Segment, checkpointBody } from '../src/index.js'
+import { AUDIENCE, FORMAT_V, REQUEST_TTL_MS, RECEIPT_TTL_MS, applyEntry, emptyState, Segment, checkpointBody, accountId, pubkeyId } from '../src/index.js'
 
 const dirs = []
 const ids = []
 
-/** Una identidad de usar y tirar, con su cuenta (`profileId`). */
+/** Una identidad de usar y tirar: `account` (huella de la cuenta) y `device` (huella de su aparato). */
 export async function account () {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'names-'))
   dirs.push(dir)
   const id = await Identity.connect({ dir })
   ids.push(id)
-  const { profileId } = await id.signData({ aud: AUDIENCE, probe: true })
-  return { id, account: profileId }
+  const { profileId, publickey } = await id.signData({ aud: AUDIENCE, probe: true })
+  return { id, account: await accountId(profileId), device: await pubkeyId(publickey) }
 }
 
 export function cleanup () {
@@ -45,7 +45,7 @@ export async function registry ({ dir, authorities = [] }) {
     state: emptyState(),
     segment: await Segment.after(null),
     async add (fields) {
-      const entry = { v: FORMAT_V, seq: r.segment.nextSeq, prev: r.segment.head, account: null, exp: null, free: false, ...fields }
+      const entry = { v: FORMAT_V, seq: r.segment.nextSeq, prev: r.segment.head, account: null, exp: null, free: false, kind: null, ...fields }
       await applyEntry(r.state, entry, { policy })
       await r.segment.append(entry)
       return entry

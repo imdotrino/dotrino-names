@@ -8,19 +8,23 @@
  * El tiempo de una entrada es su `ts`, no el reloj de quien la repite: así repetir un tramo
  * de hace un mes da lo mismo que dio entonces.
  */
-import { FORMAT_V, YEAR_MS, GRACE_MS, INACTIVITY_MS, TOUCH_INTERVAL_MS, QUARANTINE_MS } from './constants.js'
+import { FORMAT_V, YEAR_MS, GRACE_MS, INACTIVITY_MS, TOUCH_INTERVAL_MS, QUARANTINE_MS, DAY_MS } from './constants.js'
 import { NamesError, fail } from './errors.js'
 import { canonicalStringify } from './hash.js'
 import { leafHash, root, inclusionProof } from './merkle.js'
-import { checkPolicy, verifySigned, verifyDirectorySigned } from './verify.js'
+import { checkPolicy, verifySigned, verifyDirectorySigned, matchesAccount, isActaMember } from './verify.js'
+import { isLabel } from './name.js'
 
 const enc = new TextEncoder()
 const HEX64 = /^[0-9a-f]{64}$/
+/** Hasta cuántos subdominios de aparato puede tener un nombre: cada uno engorda su hoja. */
+export const MAX_SUBS = 32
+export const KINDS = Object.freeze(['native', 'domain'])
 
-export const OPS = Object.freeze(['claim', 'claim-free', 'touch', 'renew', 'transfer', 'release', 'expire', 'seize'])
+export const OPS = Object.freeze(['claim', 'claim-free', 'touch', 'sub', 'renew', 'transfer', 'release', 'expire', 'seize'])
 
 export function emptyState () {
-  // names: h → { account, exp, free, held? }   ·   freeOf: cuenta → su h gratuito (vivo o guardado)
+  // names: h → { account, exp, free, kind, held?, subs? }  (subs: aparato → huella de su llave)   ·   freeOf: cuenta → su h gratuito (vivo o guardado)
   // seen: nonces de peticiones y ids de recibos ya usados, con su caducidad (anti-repetición)
   return { names: new Map(), freeOf: new Map(), seen: new Map() }
 }
@@ -31,8 +35,9 @@ export function cloneState (s) {
 
 /** Comprueba una petición firmada por una cuenta. La marca de usada se apunta en `marks`. */
 async function request (state, marks, req, { ts, account, op, h, extra = {} }) {
-  const v = await verifySigned(req, { now: ts, account })
+  const v = await verifySigned(req, { now: ts })
   if (!v.ok) fail('bad-request-signature', `${op}: ${v.reason}`)
+  if (account !== null && v.account !== account) fail('bad-request-signature', `${op}: signed by another account`)
   const b = req.body
   if (b.v !== FORMAT_V) fail('bad-version', `${op}: request version ${b.v}`)
   if (b.op !== op) fail('request-mismatch', `${op}: request is for ${b.op}`)
@@ -55,6 +60,22 @@ async function receipt (state, marks, rcpt, { ts, policy }) {
   marks.push(['r:' + b.id, b.exp])
   return b.years
 }
+
+/**
+ * LA PRUEBA DE DOMINIO (§5.3): un nombre de un dominio real solo entra si el dominio publica un
+ * registro TXT `dotrino-names=<huella de la cuenta>`. La comprueba el DIRECTORIO, que es quien
+ * sale a mirar el DNS, y la deja escrita en la entrada con cuándo la vio: un testigo no puede
+ * repetir una consulta al DNS de hace un mes, así que en esto se fía de la cabecera firmada.
+ */
+function domainProof (entry, account, ts) {
+  const p = entry.proof
+  if (!p || p.kind !== 'dns-txt') fail('no-domain-proof', 'a domain name needs proof that the domain is yours')
+  if (p.value !== `dotrino-names=${account}`) fail('bad-domain-proof', 'the TXT record names another account')
+  if (!Number.isFinite(p.ts) || p.ts > ts || ts - p.ts > DAY_MS) fail('bad-domain-proof', 'the domain proof is stale')
+}
+
+/** Lo que se queda al cambiar de dueño: nada de lo de antes, ni sus aparatos. */
+const keep = (rec, next) => (rec.subs ? { ...next, subs: rec.subs } : next)
 
 /**
  * El registro VIVO de un nombre. Un gratuito caducado sigue en el estado `held` (guardado para
@@ -101,9 +122,11 @@ export async function applyEntry (state, entry, { policy }) {
   switch (entry.op) {
     case 'claim': {
       if (!takeable(state, h, ts, null)) fail('name-taken', 'name taken')
+      if (!KINDS.includes(entry.kind)) fail('bad-entry', 'claim needs the kind of name')
       await request(state, marks, reqs[0], { ts, account: entry.account, op: 'claim', h, extra: { account: entry.account } })
+      if (entry.kind === 'domain') domainProof(entry, entry.account, ts)
       const years = await receipt(state, marks, entry.receipt, { ts, policy })
-      next = { account: entry.account, exp: ts + years * YEAR_MS, free: false }
+      next = { account: entry.account, exp: ts + years * YEAR_MS, free: false, kind: entry.kind }
       break
     }
     case 'claim-free': {
@@ -113,9 +136,10 @@ export async function applyEntry (state, entry, { policy }) {
       if (ownRec && !ownRec.held) fail('already-has-free', 'account already has its free name')
       // Si su nombre caducado sigue guardado, recupera ESE: no se cambia de nombre dejando de usarlo.
       if (ownRec && ownRec.held && ts <= ownRec.exp && h !== own) fail('must-recover', 'the account must get back its held name')
+      if (entry.kind !== 'native') fail('bad-entry', 'a free name is always a dotrino.com name')
       if (!takeable(state, h, ts, entry.account)) fail('name-taken', 'name taken')
       await request(state, marks, reqs[0], { ts, account: entry.account, op: 'claim-free', extra: { account: entry.account } })
-      next = { account: entry.account, exp: ts + INACTIVITY_MS, free: true }
+      next = { account: entry.account, exp: ts + INACTIVITY_MS, free: true, kind: 'native' }
       freeOf = [entry.account, h]
       break
     }
@@ -126,7 +150,24 @@ export async function applyEntry (state, entry, { policy }) {
       if (state.freeOf.get(rec.account) !== h) fail('bad-entry', 'not the free name of that account')
       if (ts - (rec.exp - INACTIVITY_MS) < TOUCH_INTERVAL_MS) fail('too-soon', 'a sign of life was recorded recently')
       await request(state, marks, reqs[0], { ts, account: rec.account, op: 'touch', extra: { account: rec.account } })
-      next = { account: rec.account, exp: ts + INACTIVITY_MS, free: true }
+      next = keep(rec, { account: rec.account, exp: ts + INACTIVITY_MS, free: true, kind: rec.kind })
+      break
+    }
+    case 'sub': {
+      // Un subdominio por aparato (dueño, 2026-10-14): `laptop.blue-cat.dotrino.com` apunta a
+      // la llave de ESE aparato, que tiene que ser miembro del acta de la cuenta. Quien lo
+      // resuelve vuelve a comprobar el acta: si el aparato se quitó, el subdominio no le sirve.
+      const rec = needLive(state, h, ts)
+      if (!isLabel(entry.sub, 1, 32)) fail('bad-entry', 'invalid device label')
+      if (entry.device !== null && !HEX64.test(entry.device || '')) fail('bad-entry', 'device must be a key fingerprint or null')
+      await request(state, marks, reqs[0], { ts, account: rec.account, op: 'sub', h, extra: { sub: entry.sub, device: entry.device } })
+      if (entry.device !== null && !(await isActaMember(reqs[0].chain, entry.device))) fail('not-a-member', 'that device is not in the account record')
+      const subs = { ...(rec.subs || {}) }
+      if (entry.device === null) delete subs[entry.sub]
+      else subs[entry.sub] = entry.device
+      if (Object.keys(subs).length > MAX_SUBS) fail('too-many-subs', `at most ${MAX_SUBS} device names`)
+      const { subs: _, ...base } = rec
+      next = Object.keys(subs).length ? { ...base, subs } : base
       break
     }
     case 'renew': {
@@ -135,8 +176,10 @@ export async function applyEntry (state, entry, { policy }) {
       if (ts > rec.exp + GRACE_MS) fail('name-expired', 'past the grace period: claim it again')
       // Vencido pero en gracia: solo el dueño. Antes de vencer, cualquiera puede pagarlo.
       if (ts > rec.exp) await request(state, marks, reqs[0], { ts, account: rec.account, op: 'renew', h })
+      // Un dominio se vuelve a comprobar al renovar: si dejó de ser tuyo, el nombre también.
+      if (rec.kind === 'domain') domainProof(entry, rec.account, ts)
       const years = await receipt(state, marks, entry.receipt, { ts, policy })
-      next = { account: rec.account, exp: Math.max(rec.exp, ts) + years * YEAR_MS, free: false }
+      next = keep(rec, { account: rec.account, exp: Math.max(rec.exp, ts) + years * YEAR_MS, free: false, kind: rec.kind })
       break
     }
     case 'transfer': {
@@ -146,7 +189,8 @@ export async function applyEntry (state, entry, { policy }) {
       if (typeof entry.account !== 'string' || entry.account === rec.account) fail('bad-entry', 'transfer needs another account')
       await request(state, marks, reqs[0], { ts, account: rec.account, op: 'transfer', h, extra: { to: entry.account } })
       await request(state, marks, reqs[1], { ts, account: entry.account, op: 'accept', h, extra: { from: rec.account } })
-      next = { account: entry.account, exp: rec.exp, free: false }
+      if (rec.kind === 'domain') domainProof(entry, entry.account, ts)
+      next = { account: entry.account, exp: rec.exp, free: false, kind: rec.kind }
       break
     }
     case 'release': {
@@ -167,7 +211,7 @@ export async function applyEntry (state, entry, { policy }) {
         if (state.freeOf.get(rec.account) === h) freeOf = [rec.account, null]
       } else if (rec.free) {
         if (ts <= rec.exp) fail('not-expired', 'the account showed signs of life')
-        next = { account: rec.account, exp: ts + QUARANTINE_MS, free: true, held: true }
+        next = { account: rec.account, exp: ts + QUARANTINE_MS, free: true, kind: rec.kind, held: true }
       } else {
         if (ts <= rec.exp + GRACE_MS) fail('not-expired', 'still within its time or grace period')
         next = null
@@ -179,22 +223,22 @@ export async function applyEntry (state, entry, { policy }) {
       if (typeof entry.account !== 'string' || !entry.account) fail('bad-entry', 'seize needs the receiving account')
       if (typeof entry.reason !== 'string' || !entry.reason.trim()) fail('bad-entry', 'seize needs a reason')
       const v = await request(state, marks, reqs[0], { ts, account: null, op: 'seize', h, extra: { to: entry.account, reason: entry.reason } })
-      if (!policy.authorities.includes(v.profileId)) fail('not-authority', 'only an authority account can seize')
+      if (!policy.authorities.some((pin) => matchesAccount(v.account, pin))) fail('not-authority', 'only an authority account can seize')
       if (rec.free) {
         // A quien le quitan su nombre gratuito se le da otro en la misma entrada: nunca se queda sin.
         const r = entry.replacement
         if (!HEX64.test(r || '') || r === h || !takeable(state, r, ts, null)) fail('bad-entry', 'seizing a free name needs a free replacement')
         replacement = { h: r, account: rec.account }
       }
-      next = { account: entry.account, exp: rec.free ? ts + YEAR_MS : rec.exp, free: false }
+      next = { account: entry.account, exp: rec.free ? ts + YEAR_MS : rec.exp, free: false, kind: rec.kind }
       break
     }
   }
 
   // Lo que la entrada DICE que queda tiene que ser exactamente lo que sale de las reglas. Si el
   // nombre queda libre, la entrada no dice dueño.
-  const declared = { account: entry.account ?? null, exp: entry.exp ?? null, free: !!entry.free, held: !!entry.held }
-  const actual = next ? { account: next.account, exp: next.exp, free: next.free, held: !!next.held } : { account: null, exp: null, free: false, held: false }
+  const declared = { account: entry.account ?? null, exp: entry.exp ?? null, free: !!entry.free, kind: entry.kind ?? null, held: !!entry.held }
+  const actual = next ? { account: next.account, exp: next.exp, free: next.free, kind: next.kind, held: !!next.held } : { account: null, exp: null, free: false, kind: null, held: false }
   if (canonicalStringify(declared) !== canonicalStringify(actual)) fail('entry-mismatch', 'entry does not match what the rules give')
 
   // A partir de aquí ya no falla nada: se escribe.
@@ -207,7 +251,7 @@ export async function applyEntry (state, entry, { policy }) {
     else state.freeOf.delete(freeOf[0])
   }
   if (replacement) {
-    state.names.set(replacement.h, { account: replacement.account, exp: ts + INACTIVITY_MS, free: true })
+    state.names.set(replacement.h, { account: replacement.account, exp: ts + INACTIVITY_MS, free: true, kind: 'native' })
     state.freeOf.set(replacement.account, replacement.h)
   }
   if (next) state.names.set(h, next)
@@ -216,7 +260,7 @@ export async function applyEntry (state, entry, { policy }) {
 }
 
 /** La hoja del estado de un nombre. */
-export const stateLeafData = (h, rec) => ({ h, account: rec.account, exp: rec.exp, free: rec.free, held: !!rec.held })
+export const stateLeafData = (h, rec) => ({ h, account: rec.account, exp: rec.exp, free: rec.free, kind: rec.kind, held: !!rec.held, subs: rec.subs || {} })
 
 async function stateLeaves (state) {
   const hs = [...state.names.keys()].sort()

@@ -6,11 +6,16 @@
 
 ## 1. Qué hace y qué no
 
-- **Traduce `nombre` → id de la cuenta** (`profileId`, la huella completa, no los 48 bits del
-  código). Nada más: **no hay búsqueda, ni lista, ni «nombres parecidos»**.
-- **Apunta a la cuenta, nunca a un aparato.** La cuenta no cambia nunca; los aparatos entran,
-  se revocan y rotan su llave. El aparato va delante de la `@` (`laptop@juan`) y lo resuelve
-  el acta, como hoy.
+- **Traduce `nombre` → id de la cuenta** (la huella completa de su llave, no los 48 bits del
+  código), y **`aparato.nombre` → la llave de ese aparato**. Nada más: **no hay búsqueda, ni
+  lista, ni «nombres parecidos»**.
+- **El nombre apunta a la cuenta.** La cuenta no cambia nunca; los aparatos entran, se revocan y
+  rotan su llave.
+- **Cada aparato puede tener su subdominio** (dueño, 2026-10-14): `laptop.blue-cat.dotrino.com`.
+  Lo pone la cuenta, solo para un aparato de su acta, y quien lo resuelve vuelve a comprobar el
+  acta (§5.4).
+- **Dos clases de nombre** (§5.3): `blue-cat.dotrino.com`, del directorio, y `empresa.com`, un
+  dominio real con prueba de que es tuyo.
 - **No es una autoridad de identidad.** Quien resuelve un nombre comprueba después el acta
   contra el id recibido (`dotrino-passmanager/docs/temporary-access.md` §3.2). Un directorio
   comprometido puede **desviar o negar**: decir que `juan` es otra cuenta, o no contestar.
@@ -53,6 +58,7 @@ El registro es de **solo añadir** dentro de cada tramo (lo viejo se poda, §3.4
 | `op` | Qué dice | Firmado por |
 |---|---|---|
 | `claim` | el nombre `h` pasa a la cuenta `A` hasta `exp` | un aparato del acta de `A` con `sign` + el directorio |
+| `sub` | el aparato `laptop` de `h` es la llave `D` (o ya no hay) | un aparato del acta de `A` con `sign`; `D` tiene que estar en ese acta |
 | `touch` | la cuenta de un nombre gratuito sigue activa | un aparato del acta de `A` con `sign` |
 | `renew` | `h` sigue en `A` hasta `exp'` | el directorio (al cobrar; cualquiera puede pagar la renovación) |
 | `transfer` | `h` pasa de `A` a `B`, con el tiempo pagado que le quede | un aparato de `A` **y** uno de `B` + el directorio |
@@ -129,8 +135,10 @@ pruebas:
 
 ### 3.5. Lo que el núcleo ya fija (0.1.0)
 
-- **La cuenta es el `profileId` del pilar** (lo que devuelve `signData` y compara
-  `verifySignedFor`), no una abreviatura: la comprobación del acta se hace contra eso mismo.
+- **La cuenta se nombra por su huella**: `pubkeyId(profileId)`, los 64 hex del SHA-256 de la
+  llave génesis del acta. Es lo que enseñan la bóveda y el acta (`6729-403E-…`) y ocupa una
+  fracción de la llave entera. La firma se comprueba con el `profileId` del pilar y de ahí se
+  saca la huella.
 - **Toda firma se comprueba con `@dotrino/identity/assertion`** (`verifySignedFor`, con
   `aud = https://names.dotrino.com`): miembro con `sign` del acta de esa cuenta, y para este
   servicio. Peticiones, recibos, cabeceras y cortes, todo por el mismo camino.
@@ -139,8 +147,11 @@ pruebas:
   usado se recuerda hasta que caduca. Ese recuerdo **no entra en la raíz del estado**, así que
   un testigo que empieza en un corte sin el tramo anterior no lo tiene; con 12 tramos guardados
   y caducidades de un día y 30 días, el que repite desde el tramo anterior sí lo tiene.
-- **La política de producción (`src/policy.js`) está vacía**: falta el id de la cuenta de
-  Dotrino. Mientras tanto todo para con `no-policy`, que es lo que tiene que pasar.
+- **La política de producción (`src/policy.js`)**: la cuenta de Dotrino, la misma de los
+  proxios, firma como directorio y es la autoridad de `seize`. Se fija por la huella que enseña
+  `dotrino-vault info` en su bóveda, `6729403e6024f4f71d5bdba1` (96 bits; dueño, 2026-10-14):
+  la política acepta un prefijo de al menos 24 hex, que nadie puede fabricar a propósito. Sin
+  política válida todo para con `no-policy`.
 
 ## 4. Resolver
 
@@ -216,17 +227,52 @@ app: comprueba el acta contra accountId (como hoy con el código)
 - **Puede tener la forma de un par** (`happy-dog`) si ese par no está asignado: es un solo
   espacio de nombres.
 
-### 5.3. Reglas comunes
+### 5.3. Las dos clases de nombre
 
-- **Solo ASCII** en minúsculas: `a-z`, `0-9` y `-`, de 3 a 32 caracteres, sin `-` al
-  principio ni al final ni dos seguidos. Se normaliza a minúsculas antes de hashear. Así no
-  hay caracteres que se confunden (`а` cirílica frente a `a` latina). Otros alfabetos,
-  pendiente.
+> Dueño, 2026-10-14. Se guardan COMPLETOS y el dominio entra en el hash, así que nunca chocan.
+
+| Clase | Ejemplo | Quién la tiene |
+|---|---|---|
+| **del directorio** (`native`) | `blue-cat.dotrino.com` | quien la pide (gratuita, §5.1) o la paga (§5.2) |
+| **dominio real** (`domain`) | `empresa.com` | solo quien **prueba que el dominio es suyo** |
+
+- **Se escribe corto**: `blue-cat` es `blue-cat.dotrino.com`. Una sola etiqueta delante de
+  `.dotrino.com`; con dos, la primera es un aparato (§5.4).
+- **Un dominio real exige prueba** porque `.com` existe en el DNS de verdad: sin ella,
+  cualquiera reservaría `google.com` o el de un banco. La prueba es un registro TXT
+  `dotrino-names=<huella de la cuenta>` en el dominio. **La comprueba el directorio** al
+  reservar, al renovar y al traspasar (a la cuenta nueva), y la deja escrita en la entrada con
+  cuándo la vio. Así **`dotrino.com` solo lo tiene Dotrino**.
+- **Lo que esto no da, dicho**: un testigo no puede repetir una consulta al DNS de hace un mes.
+  En la prueba de dominio y en la clase de un nombre (el registro solo guarda su hash) se fía
+  de la cabecera firmada del directorio. Comprobar el TXT mira el DNS **público**, y la
+  comprobación vive en el servidor, extendiendo `@dotrino/verifier` (que ya prueba un dominio
+  por web), no escrita aparte.
+- Un dominio real **se paga como un nombre elegido** (§6).
+- **Solo ASCII** en minúsculas: `a-z`, `0-9` y `-`, sin `-` al principio ni al final ni dos
+  seguidos; un nombre del directorio, de 3 a 32 caracteres. Se normaliza a minúsculas antes de
+  hashear. Así no hay caracteres que se confunden (`а` cirílica frente a `a` latina). Otros
+  alfabetos, pendiente.
 - **Reservados** que no se venden: `dotrino`, los nombres de las apps del catálogo, `admin`,
   `root`, `support` y parecidos. La lista vive en el código y viaja con la versión (§14 de
   CONVENCIONES: es política del código).
 - **Un precio para todos los nombres** (regla de simplificar los procesos). Nombres cortos más
   caros, subastas o precios por demanda: no, mientras no haga falta.
+
+### 5.4. Subdominios por aparato
+
+- `laptop.blue-cat.dotrino.com`, `laptop.empresa.com`: el aparato delante del nombre. Lo pone
+  la cuenta con una entrada `sub` (`device` = huella de la llave del aparato, o `null` para
+  quitarlo), firmada por un aparato suyo con `sign`. **Solo entra si ese aparato es miembro del
+  acta** que trae la firma.
+- Hasta 32 por nombre. Viajan en la hoja del nombre, así que se prueban con el corte.
+- **Al cambiar de dueño se van** (traspaso, `seize`, vencimiento): los aparatos son del dueño
+  anterior. Renovar o dar señal de vida los conserva.
+- **El acta manda**: si un aparato se quita del acta, su subdominio sigue escrito hasta que la
+  cuenta lo quite, pero quien lo resuelve comprueba el acta y ya no lo acepta.
+- Con un dominio real, `laptop.empresa.com` puede ser el nombre `laptop.empresa.com` o el
+  aparato `laptop` de `empresa.com`: se pregunta por los dos, en ese orden. Con `.dotrino.com`
+  no hay duda.
 
 ## 6. Pago anual
 
@@ -316,7 +362,7 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 - Nombres en otros alfabetos.
 - La lista de exclusión de pares ofensivos.
-- El id de la cuenta de Dotrino en `src/policy.js` (directorio y autoridad).
+- La comprobación del TXT en el servidor, extendiendo `@dotrino/verifier`.
 - Orden de los medios de pago después de PayPal y Lightning, y confirmar Stripe y Deuna.
 - Anclaje en Bitcoin (OpenTimestamps).
 - Los criterios escritos con los que una autoridad decide un `seize` (qué marca, qué orden), publicados antes de abrir el servicio. El mecanismo ya está (§3.1).
