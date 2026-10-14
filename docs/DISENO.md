@@ -56,7 +56,7 @@ El registro es de **solo añadir** dentro de cada tramo (lo viejo se poda, §3.4
 | `transfer` | `h` pasa de `A` a `B`, con el tiempo pagado que le quede | un aparato de `A` **y** uno de `B` + el directorio |
 | `release` | `A` suelta `h` | un aparato de `A` |
 | `expire` | `h` venció y quedó libre | el directorio |
-| `seize` | el directorio le quita `h` a `A`, con `reason` | el directorio |
+| `seize` | una cuenta autoridad le quita `h` a `A` y lo pasa a `C`, con `reason` | un aparato del acta de la autoridad con `sign` + el directorio |
 
 - **`h` es el hash del nombre**, no el nombre: `h = SHA-256("dotrino-names/v1:" + nombre)`.
   Así el registro no se lee como una lista de nombres. **El límite, dicho:** un nombre común
@@ -65,6 +65,16 @@ El registro es de **solo añadir** dentro de cada tramo (lo viejo se poda, §3.4
 - **`seize` existe porque tiene que existir** (una orden judicial, una marca registrada). Lo
   que lo hace aceptable es que **queda a la vista** en el registro, con su motivo. No hay
   forma de quitar un nombre sin una entrada.
+- **Quién puede hacer `seize`: las cuentas autoridad** (dueño, 2026-10-14), como la de
+  Dotrino. Es una lista corta de ids de cuenta que **vive en el código y viaja con la
+  versión** (política del código, §14 de CONVENCIONES), y que los testigos también tienen: un
+  `seize` firmado por una cuenta que no está en su lista no lo cofirman. Lo firma un aparato
+  de esa cuenta con `sign`, como cualquier otra entrada; el directorio solo lo registra.
+- **El nombre pasa a la cuenta `C`** que diga la entrada: el titular de la marca, quien gana
+  la orden, o la propia autoridad para dejarlo fuera de circulación. El tiempo pagado que le
+  quedara a `A` no se le devuelve en el registro; si procede devolver dinero, se hace fuera.
+- **Un nombre gratuito también se puede quitar.** A la cuenta afectada se le asigna otro par
+  gratuito en la misma entrada, para que nunca se quede sin nombre.
 - **El directorio firma con una llave de comunicación** de la cuenta de Dotrino, miembro de su
   acta. Nunca con la maestra (regla de la maestra, `CLAUDE.md`).
 - **Ningún permiso nuevo**: reservar o traspasar lo firma un aparato con `sign`, igual que
@@ -273,4 +283,4 @@ app: comprueba el acta contra accountId (como hoy con el código)
 - La lista de exclusión de pares ofensivos.
 - Orden de los medios de pago después de PayPal y Lightning, y confirmar Stripe y Deuna.
 - Anclaje en Bitcoin (OpenTimestamps).
-- Política escrita de `seize` (marcas, órdenes judiciales) antes de abrir el servicio.
+- Los criterios escritos con los que una autoridad decide un `seize` (qué marca, qué orden), publicados antes de abrir el servicio. El mecanismo ya está (§3.1).
