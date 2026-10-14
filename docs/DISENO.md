@@ -18,8 +18,9 @@
   equivocada). Y desviar no es mudo: para cambiar a quién apunta un nombre hace falta una
   entrada en el registro, que los testigos ven (§3), y el cliente **recuerda a qué cuenta
   resolvió cada nombre** y avisa si cambia.
-- **Es opcional.** Sin nombre, la cuenta funciona entera con su código. Ninguna app exige
-  tener un nombre.
+- **Toda cuenta tiene nombre, gratis** (dueño, 2026-10-14): el directorio le asigna uno
+  generado, un **sustantivo y un adjetivo** (`gato-azul`), §5.1. **Pagando, se elige** el que
+  uno quiera (§5.2). La cuenta sigue funcionando entera con su código sin ninguno de los dos.
 
 ## 2. Por qué no una blockchain pública ni un token
 
@@ -112,6 +113,40 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 ## 5. El nombre
 
+### 5.1. El nombre gratuito: sustantivo + adjetivo
+
+- **Lo ASIGNA el directorio, no se calcula de la huella.** Dos palabras dan del orden de un
+  millón de pares (≈ 20 bits). Sacarlas de la huella haría que dos cuentas cayeran en el mismo
+  par a partir de unas mil (paradoja del cumpleaños), y con 20 bits cualquiera fabrica una
+  cuenta que caiga en el par de otro en segundos. Así que el nombre gratuito es una entrada
+  `claim` más, con `free: true` y sin recibo, y **la seguridad la sigue dando el acta contra
+  el id completo**, como con el nombre pagado.
+- **Se elige al azar entre los pares libres**, uno por cuenta, al pedirlo por primera vez. El
+  directorio puede limitar cuántos asigna por origen para que nadie se los lleve todos.
+- **Orden de cada idioma**: `gato-azul` en español (sustantivo, adjetivo) y `blue-cat` en
+  inglés (adjetivo, sustantivo). Se genera en el idioma con el que se pide. **En español el
+  adjetivo concuerda en género** (`casa-roja`, no `casa-rojo`): la lista de sustantivos lleva
+  el género y la de adjetivos sus dos formas.
+- **Palabras comunes solamente**: las de popularidad ≥ 7 de la lista del dueño
+  (`/mnt/sda1/dns`, `seyacat/dns`, escala 0–10). Fuera nombres propios, siglas, palabras con
+  tilde o `ñ` (el nombre es ASCII, §5.3) y una lista de exclusión de pares ofensivos o
+  sensibles. Estado de la lista: **inglés puntuado entero** (≈ 4 000 palabras con ≥ 7, con su
+  categoría gramatical en `english_dictionary.db`); **español al 29 %** (42 de 144 lotes) y
+  **sin categoría gramatical**, que hay que sacar del diccionario de la RAE.
+- **Cuando queden pocos pares libres**, se añade un número detrás (`gato-azul-7`) en vez de
+  agrandar las listas con palabras raras.
+- **No vence y no se traspasa.** Es el nombre de la cuenta mientras exista; no hay nada que
+  renovar ni que vender. Quien quiere otro, lo paga (§5.2), y el gratuito se le queda igual.
+
+### 5.2. El nombre pagado
+
+- Lo elige el usuario, con las reglas de §5.3, si está libre. Es el que vence, se renueva y se
+  traspasa (§6).
+- **Puede tener la forma de un par** (`perro-feliz`) si ese par no está asignado: es un solo
+  espacio de nombres.
+
+### 5.3. Reglas comunes
+
 - **Solo ASCII** en minúsculas: `a-z`, `0-9` y `-`, de 3 a 32 caracteres, sin `-` al
   principio ni al final ni dos seguidos. Se normaliza a minúsculas antes de hashear. Así no
   hay caracteres que se confunden (`а` cirílica frente a `a` latina). Otros alfabetos,
@@ -124,6 +159,7 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 ## 6. Pago anual
 
+- **Esto es solo del nombre pagado** (§5.2): el gratuito no vence.
 - **Se paga por año.** `claim` y `renew` dan 12 meses.
 - **Aviso antes de vencer**: a los aparatos del acta, 30 y 7 días antes, por los avisos que ya
   existen.
@@ -161,5 +197,7 @@ app: comprueba el acta contra accountId (como hoy con el código)
 - Precio por año.
 - Procesador de pago concreto y cómo avisa (webhook) al directorio.
 - Nombres en otros alfabetos.
+- Terminar de puntuar el español y sacarle la categoría gramatical y el género (RAE).
+- La lista de exclusión de pares ofensivos.
 - Anclaje en Bitcoin (OpenTimestamps).
 - Política escrita de `seize` (marcas, órdenes judiciales) antes de abrir el servicio.
