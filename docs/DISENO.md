@@ -19,7 +19,7 @@
   entrada en el registro, que los testigos ven (§3), y el cliente **recuerda a qué cuenta
   resolvió cada nombre** y avisa si cambia.
 - **Toda cuenta tiene nombre, gratis** (dueño, 2026-10-14): el directorio le asigna uno
-  generado, un **sustantivo y un adjetivo** (`gato-azul`), §5.1. **Pagando, se elige** el que
+  generado, un **adjetivo y un sustantivo en inglés** (`blue-cat`), §5.1. **Pagando, se elige** el que
   uno quiera (§5.2). La cuenta sigue funcionando entera con su código sin ninguno de los dos.
 
 ## 2. Por qué no una blockchain pública ni un token
@@ -123,18 +123,18 @@ app: comprueba el acta contra accountId (como hoy con el código)
   el id completo**, como con el nombre pagado.
 - **Se elige al azar entre los pares libres**, uno por cuenta, al pedirlo por primera vez. El
   directorio puede limitar cuántos asigna por origen para que nadie se los lleve todos.
-- **Orden de cada idioma**: `gato-azul` en español (sustantivo, adjetivo) y `blue-cat` en
-  inglés (adjetivo, sustantivo). Se genera en el idioma con el que se pide. **En español el
-  adjetivo concuerda en género** (`casa-roja`, no `casa-rojo`): la lista de sustantivos lleva
-  el género y la de adjetivos sus dos formas.
+- **Solo en inglés** (dueño, 2026-10-14): `blue-cat`, adjetivo y sustantivo, en ese orden.
+  Una lista para todos, sin concordancia de género y en ASCII de por sí. La lista española
+  (a medio puntuar y sin categoría gramatical) se descarta.
 - **Palabras comunes solamente**: las de popularidad ≥ 7 de la lista del dueño
-  (`/mnt/sda1/dns`, `seyacat/dns`, escala 0–10). Fuera nombres propios, siglas, palabras con
-  tilde o `ñ` (el nombre es ASCII, §5.3) y una lista de exclusión de pares ofensivos o
-  sensibles. Estado de la lista: **inglés puntuado entero** (≈ 4 000 palabras con ≥ 7, con su
-  categoría gramatical en `english_dictionary.db`); **español al 29 %** (42 de 144 lotes) y
-  **sin categoría gramatical**, que hay que sacar del diccionario de la RAE.
+  (`/mnt/sda1/dns/en`, `seyacat/dns`, escala 0–10), con la categoría gramatical de
+  `english_dictionary.db`, solo `a-z` y de 3 a 10 letras. Contado el 2026-10-14: **1 850
+  sustantivos × 547 adjetivos ≈ 1 012 000 pares** (con ≥ 8 serían 94 000, poco). Fuera nombres
+  propios, siglas y una lista de exclusión de palabras y pares ofensivos o sensibles.
 - **Cuando queden pocos pares libres**, se añade un número detrás (`gato-azul-7`) en vez de
   agrandar las listas con palabras raras.
+- **La lista viaja con el código** (§14 de CONVENCIONES): se copia a este repo, con su
+  versión, en vez de leerse de `/mnt/sda1/dns`.
 - **No se cambia, no vence y no se traspasa** (dueño, 2026-10-14). Sale una vez y es el
   nombre de la cuenta mientras exista: no hay «dame otro», ni nada que renovar ni que vender.
   Así nadie puede ir pidiendo pares hasta dar con uno que le guste, que sería elegir gratis. Quien quiere otro, lo paga (§5.2), y el gratuito se le queda igual.
@@ -143,7 +143,7 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 - Lo elige el usuario, con las reglas de §5.3, si está libre. Es el que vence, se renueva y se
   traspasa (§6).
-- **Puede tener la forma de un par** (`perro-feliz`) si ese par no está asignado: es un solo
+- **Puede tener la forma de un par** (`happy-dog`) si ese par no está asignado: es un solo
   espacio de nombres.
 
 ### 5.3. Reglas comunes
@@ -198,7 +198,6 @@ app: comprueba el acta contra accountId (como hoy con el código)
 - Precio por año.
 - Procesador de pago concreto y cómo avisa (webhook) al directorio.
 - Nombres en otros alfabetos.
-- Terminar de puntuar el español y sacarle la categoría gramatical y el género (RAE).
 - La lista de exclusión de pares ofensivos.
 - Anclaje en Bitcoin (OpenTimestamps).
 - Política escrita de `seize` (marcas, órdenes judiciales) antes de abrir el servicio.

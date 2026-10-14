@@ -4,7 +4,7 @@
 
 **Directorio de nombres** del ecosistema: traduce un nombre legible (`juan`) al id de una
 cuenta (`AB12-CD34-EF56…`), para que `laptop@juan` sirva igual que `laptop@AB12-CD34-EF56`.
-Lo resuelve el proxio. Toda cuenta recibe gratis un nombre generado (sustantivo + adjetivo,
-`gato-azul`); elegir uno propio se paga, por año.
+Lo resuelve el proxio. Toda cuenta recibe gratis un nombre generado (adjetivo + sustantivo en
+inglés, `blue-cat`); elegir uno propio se paga, por año.
 
 **Estado: diseño, sin código.** El diseño está en [`docs/DISENO.md`](./docs/DISENO.md).
