@@ -1,0 +1,17 @@
+{
+  "name": "Nombres — Dotrino",
+  "short_name": "Nombres",
+  "description": "Tu nombre en Dotrino: pide uno gratis, reserva el que quieras y ponle nombre a cada uno de tus aparatos.",
+  "start_url": "./",
+  "scope": "./",
+  "launch_handler": { "client_mode": "focus-existing" },
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1a24",
+  "theme_color": "#0f1a24",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

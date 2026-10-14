@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Nombres · Dotrino</title>
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <meta name="theme-color" content="#0f1a24" />
+  <meta name="description" content="Tu nombre en Dotrino: pide uno gratis, reserva el que quieras por año y ponle nombre a cada uno de tus aparatos. Sin anuncios, sin rastreo." />
+  <link rel="canonical" href="https://names.dotrino.com/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta property="og:site_name" content="Dotrino" />
+  <meta property="og:title" content="Nombres · Dotrino" />
+  <meta property="og:description" content="Tu nombre en Dotrino: pide uno gratis, reserva el que quieras y ponle nombre a tus aparatos." />
+  <meta property="og:url" content="https://names.dotrino.com/" />
+  <meta property="og:image" content="https://names.dotrino.com/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Nombres · Dotrino" />
+  <meta name="twitter:description" content="Tu nombre en Dotrino: pide uno gratis, reserva el que quieras y ponle nombre a tus aparatos." />
+  <meta name="twitter:image" content="https://names.dotrino.com/og.jpg" />
+  <!-- Analítica cookieless autohosteada (GoatCounter); no cuenta en localhost/LAN. -->
+  <script>window.goatcounter={path:function(p){return location.hostname+p}}</script>
+  <script data-goatcounter="https://goat.dotrino.com/count" async src="https://goat.dotrino.com/count.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Nombres · Dotrino",
+    "url": "https://names.dotrino.com/",
+    "description": "Tu nombre en Dotrino: pide uno gratis, reserva el que quieras por año y ponle nombre a cada uno de tus aparatos.",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Web",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Dotrino", "url": "https://dotrino.com/" }
+  }
+  </script>
+  <!-- PWA (CONVENCIONES §3) -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Nombres" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+</head>
+<body>
+  <!-- La barra (marca, idioma, perfil, support) la trae <dotrino-topbar>, montado en App.vue. -->
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}) })
+    }
+  </script>
+</body>
+</html>

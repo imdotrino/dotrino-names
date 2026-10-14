@@ -19,6 +19,16 @@ nginx: /etc/nginx/sites-available/names.dotrino.com → 127.0.0.1:8094, con acce
 | `NAMES_DB` | `names.db` | el archivo SQLite |
 | `NAMES_DIR` | `~/.local/share/dotrino-names` | el enlace con la bóveda |
 | `NAMES_PUBLIC_URL` | `https://names.dotrino.com` | a dónde vuelve PayPal |
+| `NAMES_WEB` | `../web/dist` (del repo) | la página construida; sin ella solo se sirve la API |
+
+## La página (`web/`)
+
+Vite + Vue, servida por el mismo proceso en el mismo origen (la vuelta de PayPal y las
+peticiones firmadas no cruzan dominios). Se construye en proxy2 tras cada `git pull`:
+
+```bash
+cd ~/dotrino-names/web && npm install && npm run build && pm2 restart dotrino-names
+```
 
 ## Enrolar (una vez)
 

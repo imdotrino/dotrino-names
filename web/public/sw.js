@@ -1,0 +1,46 @@
+// Service worker estándar del ecosistema (§3): navegación network-first (los deploys se
+// ven al instante; offline cae a caché), assets cache-first con refresco en segundo plano.
+// La API vive en el MISMO origen (/check, /head, /resolve…): no se cachea nunca.
+// Subir N de CACHE en cada cambio de assets cacheados.
+const CACHE = 'names-v1';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
+
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(() => {}));
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  const isNavigation = e.request.mode === 'navigate' || e.request.destination === 'document';
+  if (isNavigation) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put('./index.html', copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+  // Un asset tiene extensión; una ruta de la API no. La API va siempre a la red.
+  if (!/\.[a-z0-9]+$/i.test(url.pathname)) return;
+
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      const network = fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+        return res;
+      }).catch(() => cached);
+      return cached || network;
+    })
+  );
+});

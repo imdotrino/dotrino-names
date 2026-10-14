@@ -2,7 +2,7 @@
 /**
  * dotrino-names — el servidor del directorio de nombres (`names.dotrino.com`).
  *
- *   dotrino-names serve              arranca (PORT, NAMES_DB, NAMES_DIR, NAMES_PUBLIC_URL)
+ *   dotrino-names serve              arranca (PORT, NAMES_DB, NAMES_DIR, NAMES_PUBLIC_URL, NAMES_WEB)
  *   dotrino-names enroll <invite>    se empareja con la bóveda de Dotrino
  *   dotrino-names info [--json]      qué aparato es (CONVENCIONES §15.1)
  *
@@ -10,7 +10,8 @@
  * firmado por cuentas funciona igual, porque la llave del aparato está en el enlace.
  */
 import http from 'node:http'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { verifyDnsTxt } from '@dotrino/verifier'
 import { watchForUpdate } from '@dotrino/update'
 import { Store } from './store.js'
@@ -40,7 +41,10 @@ if (cmd === 'info') {
     store, signer: identity, publicUrl, log,
     checkDomain: (domain, expected) => verifyDnsTxt({ domain, expected })
   })
-  const handler = makeHandler({ directory, version: pkg.version, product: pkg.name, log })
+  // La página: `web/dist` del repo (se construye con `npm run build` en `web/`), o NAMES_WEB.
+  const webDir = process.env.NAMES_WEB || fileURLToPath(new URL('../web/dist/', import.meta.url))
+  if (!existsSync(webDir)) log(`[names] no page at ${webDir}: only the API is served`)
+  const handler = makeHandler({ directory, version: pkg.version, product: pkg.name, webDir: existsSync(webDir) ? webDir : null, log })
   const port = Number(process.env.PORT || 8094)
   http.createServer(handler).listen(port, '127.0.0.1', () => log(`[names] listening on 127.0.0.1:${port}`))
 

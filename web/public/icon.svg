@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b4b6b"/>
+      <stop offset="1" stop-color="#0f1a24"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="26" fill="url(#bg)"/>
+  <!-- una etiqueta de nombre, dentro de la safe-zone maskable -->
+  <g transform="rotate(-18 60 60)">
+    <path d="M26 44 h46 l18 16 -18 16 H26 a6 6 0 0 1 -6 -6 V50 a6 6 0 0 1 6 -6 z" fill="#e8f4fb"/>
+    <circle cx="74" cy="60" r="4.5" fill="#1b4b6b"/>
+    <rect x="30" y="54" width="30" height="5" rx="2.5" fill="#4aa8d8"/>
+    <rect x="30" y="63" width="20" height="4" rx="2" fill="#9cc9e2"/>
+  </g>
+</svg>
