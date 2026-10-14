@@ -172,10 +172,29 @@ app: comprueba el acta contra accountId (como hoy con el código)
   existen.
 - **30 días de gracia** después de `exp`: el nombre deja de resolver (`name-expired`) pero solo
   el dueño puede renovarlo. Pasado ese plazo, `expire` y queda libre.
-- **El pago va fuera del registro.** El procesador (PayPhone en Ecuador, PayPal fuera, ver
-  `MODELO-NEGOCIO.md`) avisa al directorio, y el directorio emite un **recibo firmado** de un
-  solo uso. `claim` y `renew` solo entran con un recibo válido. En el registro solo queda el
-  hash del recibo.
+- **El pago va fuera del registro, y se cobra con PayPal** (dueño, 2026-10-14). El directorio
+  emite un **recibo firmado** de un solo uso cuando el cobro se confirma. `claim` y `renew`
+  solo entran con un recibo válido. En el registro solo queda el hash del recibo.
+- **Cómo se cobra, sin JavaScript de PayPal en la página** (la regla de nada de JS de
+  terceros): con la API de pedidos de PayPal (Orders v2) por **redirección**.
+
+  ```
+  página ──POST /checkout { years }──► directorio ──crea el pedido──► PayPal
+  página ◄── enlace de aprobación ─────┘
+  usuario aprueba en paypal.com ──vuelve a names.dotrino.com/return?token=…
+  página ──POST /capture──► directorio ──captura el pedido──► PayPal (COMPLETED)
+  página ◄── recibo firmado ─────┘
+  ```
+
+  **Quien confirma el cobro es el directorio**, que captura el pedido con su credencial y lee
+  el resultado de PayPal directamente: no se fía de lo que diga la página. El aviso por webhook
+  de PayPal (`PAYMENT.CAPTURE.COMPLETED`, con su firma comprobada) solo sirve de respaldo para
+  un cobro cuya vuelta se cortó, y emite el mismo recibo una sola vez.
+- **A PayPal no le llega ni el nombre ni la cuenta.** El pedido lleva el importe, una
+  descripción fija («Dotrino name, N years») y en `custom_id` un número de un solo uso que solo
+  el directorio sabe atar al pedido. PayPal sí sabe quién paga, que es inevitable.
+- **La credencial de PayPal vive en la bóveda** (cajón del servicio), como cualquier secreto
+  de un servicio del ecosistema.
 - **Lo que esto NO esconde**: la factura (SRI) la exige la ley y lleva datos de quien paga.
   DOTRINO S.A.S. la guarda aparte del directorio, y el directorio no la consulta. Pero existe:
   quien paga con su nombre queda ligado a su `h` en la contabilidad. Se dice en la página
@@ -201,7 +220,6 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 ## 8. Pendientes
 
-- Procesador de pago concreto y cómo avisa (webhook) al directorio.
 - Nombres en otros alfabetos.
 - La lista de exclusión de pares ofensivos.
 - Anclaje en Bitcoin (OpenTimestamps).
