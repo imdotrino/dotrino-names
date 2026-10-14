@@ -52,10 +52,11 @@ El registro es de **solo añadir** dentro de cada tramo (lo viejo se poda, §3.4
 | `op` | Qué dice | Firmado por |
 |---|---|---|
 | `claim` | el nombre `h` pasa a la cuenta `A` hasta `exp` | un aparato del acta de `A` con `sign` + el directorio |
+| `touch` | la cuenta de un nombre gratuito sigue activa | un aparato del acta de `A` con `sign` |
 | `renew` | `h` sigue en `A` hasta `exp'` | el directorio (al cobrar; cualquiera puede pagar la renovación) |
 | `transfer` | `h` pasa de `A` a `B`, con el tiempo pagado que le quede | un aparato de `A` **y** uno de `B` + el directorio |
 | `release` | `A` suelta `h` | un aparato de `A` |
-| `expire` | `h` venció y quedó libre | el directorio |
+| `expire` | `h` venció: un pagado queda libre; un gratuito pasa a guardado, y al acabar la reserva, libre | nadie: entra solo si de verdad toca |
 | `seize` | una cuenta autoridad le quita `h` a `A` y lo pasa a `C`, con `reason` | un aparato del acta de la autoridad con `sign` + el directorio |
 
 - **`h` es el hash del nombre**, no el nombre: `h = SHA-256("dotrino-names/v1:" + nombre)`.
@@ -187,14 +188,27 @@ app: comprueba el acta contra accountId (como hoy con el código)
   agrandar las listas con palabras raras.
 - **La lista viaja con el código** (§14 de CONVENCIONES): se copia a este repo, con su
   versión, en vez de leerse de `/mnt/sda1/dns`.
-- **No se cambia, no vence y no se traspasa** (dueño, 2026-10-14). Sale una vez y es el
-  nombre de la cuenta mientras exista: no hay «dame otro», ni nada que renovar ni que vender.
-  Así nadie puede ir pidiendo pares hasta dar con uno que le guste, que sería elegir gratis. Quien quiere otro, lo paga (§5.2), y el gratuito se le queda igual.
+- **No se cambia y no se traspasa** (dueño, 2026-10-14). Sale una vez: no hay «dame otro» ni
+  nada que vender. Así nadie puede ir pidiendo pares hasta dar con uno que le guste, que sería
+  elegir gratis.
+- **Caduca tras un mes sin actividad** (dueño, 2026-10-14). El directorio no ve quién usa un
+  nombre (las consultas le llegan por el proxio), así que la actividad la **prueba la cuenta**:
+  una **señal de vida firmada** (`touch`) por cualquier aparato de su acta. La manda **el
+  pilar, solo** (`@dotrino/proxy-client`, tras `identify`), como mucho una vez por semana:
+  ninguna app hace nada y el usuario tampoco. 30 días sin señal y cualquiera puede escribir el
+  `expire`, que entra solo si de verdad pasaron.
+- **Caducado, queda guardado 6 meses para su cuenta**: no resuelve y nadie más lo toma. Si la
+  cuenta vuelve en ese tiempo **recupera ese mismo** (el registro la obliga: `must-recover`), lo
+  que también cierra el atajo de dejar de usarla para cambiar de nombre. Pasada la reserva, el
+  par vuelve a circular y la cuenta, si vuelve, recibe otro.
+- **Lo que cuesta, dicho**: el registro deja ver que una cuenta estuvo activa en tal semana
+  (no más fino: la señal es semanal). Y quien pasa un mes sin encender ningún aparato pierde el
+  nombre de la vista hasta que vuelve. Quien quiere otro, lo paga (§5.2), y el gratuito se le queda igual.
 
 ### 5.2. El nombre pagado
 
 - Lo elige el usuario, con las reglas de §5.3, si está libre. Es el que vence, se renueva y se
-  traspasa (§6).
+  traspasa (§6). **No caduca por inactividad**: lo mantiene el pago.
 - **Puede tener la forma de un par** (`happy-dog`) si ese par no está asignado: es un solo
   espacio de nombres.
 
@@ -212,7 +226,7 @@ app: comprueba el acta contra accountId (como hoy con el código)
 
 ## 6. Pago anual
 
-- **Esto es solo del nombre pagado** (§5.2): el gratuito no vence.
+- **Esto es solo del nombre pagado** (§5.2): el gratuito no se paga; caduca por inactividad (§5.1).
 - **Precio: USD 0,99 por año, más impuestos** (dueño, 2026-10-14). En Ecuador el IVA es del
   15 %: USD 1,14 en total. El mismo precio para cualquier nombre (§5.3).
 - **Se paga por año.** `claim` y `renew` dan 12 meses.

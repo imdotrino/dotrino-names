@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { nameHash, YEAR_MS, GRACE_MS, DAY_MS, emptyState, cloneState, stateProof, replaySegment, verifyResolution, checkpointBody, applyEntry, POLICY } from '../src/index.js'
+import { nameHash, YEAR_MS, GRACE_MS, DAY_MS, INACTIVITY_MS, QUARANTINE_MS, emptyState, cloneState, stateProof, replaySegment, verifyResolution, checkpointBody, applyEntry, POLICY } from '../src/index.js'
 import { account, cleanup, req, receipt, registry, sign } from './helpers.mjs'
 
 const T0 = Date.UTC(2026, 9, 14)
@@ -9,7 +9,7 @@ let dir, ana, beto, auth
 test.before(async () => { [dir, ana, beto, auth] = await Promise.all([account(), account(), account(), account()]) })
 test.after(cleanup)
 
-const claimFree = async (r, who, name, ts = T0) => r.add({ op: 'claim-free', ts, h: await nameHash(name), account: who.account, free: true, reqs: [await req(who, ts, { op: 'claim-free', account: who.account })] })
+const claimFree = async (r, who, name, ts = T0) => r.add({ op: 'claim-free', ts, h: await nameHash(name), account: who.account, exp: ts + INACTIVITY_MS, free: true, reqs: [await req(who, ts, { op: 'claim-free', account: who.account })] })
 const claim = async (r, who, name, ts = T0, years = 1) => r.add({ op: 'claim', ts, h: await nameHash(name), account: who.account, exp: ts + years * YEAR_MS, reqs: [await req(who, ts, { op: 'claim', h: await nameHash(name), account: who.account })], receipt: await receipt(dir, ts, years) })
 
 test('sin política de producción no se da nada por bueno', async () => {
@@ -138,4 +138,52 @@ test('resolver: por el corte o por una entrada posterior, y con todo comprobado'
   await assert.rejects(verifyResolution({ name: 'ana', response: { checkpoint: await sign(ana, cp.body), state: proof }, policy: r.policy, now }), { code: 'bad-directory-signature' })
   // Vencido no resuelve.
   await assert.rejects(verifyResolution({ name: 'ana', response: { checkpoint: cp, state: proof }, policy: r.policy, now: T0 + 2 * YEAR_MS }), { code: 'name-expired' })
+})
+
+const touch = async (r, who, name, ts) => r.add({ op: 'touch', ts, h: await nameHash(name), account: who.account, exp: ts + INACTIVITY_MS, free: true, reqs: [await req(who, ts, { op: 'touch', account: who.account })] })
+
+test('el gratuito se mantiene con señales de vida, como mucho una por semana', async () => {
+  const r = await registry({ dir })
+  const { h } = await claimFree(r, ana, 'blue-cat')
+  await assert.rejects(touch(r, ana, 'blue-cat', T0 + DAY_MS), { code: 'too-soon' })
+  await touch(r, ana, 'blue-cat', T0 + 7 * DAY_MS)
+  await touch(r, ana, 'blue-cat', T0 + 30 * DAY_MS)
+  assert.equal(r.state.names.get(h).exp, T0 + 60 * DAY_MS)
+  // La señal la firma la cuenta del nombre, no otra.
+  await assert.rejects(r.add({ op: 'touch', ts: T0 + 40 * DAY_MS, h, account: ana.account, exp: T0 + 70 * DAY_MS, free: true, reqs: [await req(beto, T0 + 40 * DAY_MS, { op: 'touch', account: ana.account })] }), { code: 'bad-request-signature' })
+})
+
+test('un mes sin señal: caduca, queda guardado seis meses y su cuenta lo recupera', async () => {
+  const r = await registry({ dir })
+  const { h } = await claimFree(r, ana, 'blue-cat')
+  await assert.rejects(r.add({ op: 'expire', ts: T0 + 29 * DAY_MS, h }), { code: 'not-expired' })
+  const tx = T0 + 31 * DAY_MS
+  await r.add({ op: 'expire', ts: tx, h, account: ana.account, exp: tx + QUARANTINE_MS, free: true, held: true })
+  // Guardado: no resuelve, nadie más lo toma, y la cuenta no puede llevarse otro en su lugar.
+  await assert.rejects(touch(r, ana, 'blue-cat', tx + DAY_MS), { code: 'name-not-found' })
+  await assert.rejects(claimFree(r, beto, 'blue-cat', tx + DAY_MS), { code: 'name-taken' })
+  await assert.rejects(claimFree(r, ana, 'red-dog', tx + DAY_MS), { code: 'must-recover' })
+  await claimFree(r, ana, 'blue-cat', tx + 2 * DAY_MS)
+  assert.equal(r.state.names.get(h).held, undefined)
+})
+
+test('pasada la reserva el par vuelve a circular, y la cuenta vieja saca otro', async () => {
+  const r = await registry({ dir })
+  const { h } = await claimFree(r, ana, 'blue-cat')
+  const tx = T0 + 31 * DAY_MS
+  await r.add({ op: 'expire', ts: tx, h, account: ana.account, exp: tx + QUARANTINE_MS, free: true, held: true })
+  const later = tx + QUARANTINE_MS + DAY_MS
+  await claimFree(r, beto, 'blue-cat', later)
+  assert.equal(r.state.names.get(h).account, beto.account)
+  assert.equal(r.state.freeOf.has(ana.account), false)
+  await claimFree(r, ana, 'red-dog', later)
+})
+
+test('un gratuito caducado no resuelve', async () => {
+  const r = await registry({ dir })
+  await claimFree(r, ana, 'blue-cat')
+  const cp = await r.checkpoint(T0)
+  const proof = await stateProof(r.state, await nameHash('blue-cat'))
+  assert.equal((await verifyResolution({ name: 'blue-cat', response: { checkpoint: cp, state: proof }, policy: r.policy, now: T0 + DAY_MS })).free, true)
+  await assert.rejects(verifyResolution({ name: 'blue-cat', response: { checkpoint: cp, state: proof }, policy: r.policy, now: T0 + 31 * DAY_MS }), { code: 'name-expired' })
 })

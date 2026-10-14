@@ -5,7 +5,7 @@
 **Directorio de nombres** del ecosistema: traduce un nombre legible (`juan`) al id de una
 cuenta (`AB12-CD34-EF56…`), para que `laptop@juan` sirva igual que `laptop@AB12-CD34-EF56`.
 Lo resuelve el proxio. Toda cuenta recibe gratis un nombre generado (adjetivo + sustantivo en
-inglés, `blue-cat`); elegir uno propio se paga, por año.
+inglés, `blue-cat`), que caduca tras un mes sin actividad; elegir uno propio se paga, por año.
 
 **Estado:** el núcleo (`@dotrino/names` 0.1.0, sin publicar) está hecho y probado; faltan el
 servidor, el cobro, el proxio y la página. El diseño está en [`docs/DISENO.md`](./docs/DISENO.md).
@@ -16,7 +16,7 @@ Funciones puras, sin red ni disco, para el servidor, los testigos y los clientes
 
 - `normalizeName`, `nameHash`: qué es un nombre válido y su hash en el registro.
 - `pickFreeName`, `randomPair`: el nombre gratuito (`blue-cat`), de `src/words/`.
-- `applyEntry`: las reglas que cambian el estado (`claim`, `claim-free`, `renew`, `transfer`,
+- `applyEntry`: las reglas que cambian el estado (`claim`, `claim-free`, `touch`, `renew`, `transfer`,
   `release`, `expire`, `seize`).
 - `Segment`, `checkpointBody`, `replaySegment`: tramos, cortes y lo que hace un testigo.
 - `verifyResolution`: comprobar una respuesta del directorio.

@@ -18,3 +18,9 @@ export const REQUEST_TTL_MS = DAY_MS
 export const RECEIPT_TTL_MS = 30 * DAY_MS
 /** Cuántos tramos mensuales se conservan; los cortes se conservan todos (§3.4). */
 export const RETAINED_SEGMENTS = 12
+/** Un nombre gratuito caduca tras este tiempo sin señal de vida de su cuenta (dueño, 2026-10-14). */
+export const INACTIVITY_MS = 30 * DAY_MS
+/** La señal de vida (`touch`) entra como mucho una vez por semana: más no aporta y deja más rastro. */
+export const TOUCH_INTERVAL_MS = 6 * DAY_MS
+/** Un nombre gratuito caducado queda guardado para su cuenta este tiempo antes de volver a darse. */
+export const QUARANTINE_MS = 183 * DAY_MS

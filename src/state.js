@@ -8,7 +8,7 @@
  * El tiempo de una entrada es su `ts`, no el reloj de quien la repite: así repetir un tramo
  * de hace un mes da lo mismo que dio entonces.
  */
-import { FORMAT_V, YEAR_MS, GRACE_MS } from './constants.js'
+import { FORMAT_V, YEAR_MS, GRACE_MS, INACTIVITY_MS, TOUCH_INTERVAL_MS, QUARANTINE_MS } from './constants.js'
 import { NamesError, fail } from './errors.js'
 import { canonicalStringify } from './hash.js'
 import { leafHash, root, inclusionProof } from './merkle.js'
@@ -17,10 +17,10 @@ import { checkPolicy, verifySigned, verifyDirectorySigned } from './verify.js'
 const enc = new TextEncoder()
 const HEX64 = /^[0-9a-f]{64}$/
 
-export const OPS = Object.freeze(['claim', 'claim-free', 'renew', 'transfer', 'release', 'expire', 'seize'])
+export const OPS = Object.freeze(['claim', 'claim-free', 'touch', 'renew', 'transfer', 'release', 'expire', 'seize'])
 
 export function emptyState () {
-  // names: h → { account, exp, free }   ·   freeOf: cuenta → su h gratuito
+  // names: h → { account, exp, free, held? }   ·   freeOf: cuenta → su h gratuito (vivo o guardado)
   // seen: nonces de peticiones y ids de recibos ya usados, con su caducidad (anti-repetición)
   return { names: new Map(), freeOf: new Map(), seen: new Map() }
 }
@@ -56,10 +56,23 @@ async function receipt (state, marks, rcpt, { ts, policy }) {
   return b.years
 }
 
-function needLive (state, h) {
+/**
+ * El registro VIVO de un nombre. Un gratuito caducado sigue en el estado `held` (guardado para
+ * su cuenta, §5.1 del diseño), pero no resuelve ni se opera: para lo demás, no existe.
+ */
+function needLive (state, h, ts) {
   const rec = state.names.get(h)
-  if (!rec) fail('name-not-found', 'name not found')
+  if (!rec || rec.held) fail('name-not-found', 'name not found')
+  if (rec.free && ts > rec.exp) fail('name-expired', 'free name expired for inactivity')
   return rec
+}
+
+/** ¿Lo puede tomar `account` ahora? Libre, o guardado y ya pasada su reserva, o guardado para ella. */
+function takeable (state, h, ts, account) {
+  const rec = state.names.get(h)
+  if (!rec) return true
+  if (rec.held) return ts > rec.exp || rec.account === account
+  return false
 }
 
 /**
@@ -80,10 +93,14 @@ export async function applyEntry (state, entry, { policy }) {
   const marks = [] // [clave, caducidad] de lo usado, para no aceptarlo dos veces
   let next // el registro del nombre después de la entrada; null = libre
   let replacement = null // nombre gratuito nuevo para quien pierde el suyo por un `seize`
+  let freeOf = null // [cuenta, h | null]: cambio en el índice de gratuitos
+  // Si se toma un par guardado de otra cuenta (ya pasada su reserva), esa cuenta deja de tenerlo.
+  const prior = state.names.get(h)
+  const orphan = prior?.held && state.freeOf.get(prior.account) === h ? prior.account : null
 
   switch (entry.op) {
     case 'claim': {
-      if (state.names.has(h)) fail('name-taken', 'name taken')
+      if (!takeable(state, h, ts, null)) fail('name-taken', 'name taken')
       await request(state, marks, reqs[0], { ts, account: entry.account, op: 'claim', h, extra: { account: entry.account } })
       const years = await receipt(state, marks, entry.receipt, { ts, policy })
       next = { account: entry.account, exp: ts + years * YEAR_MS, free: false }
@@ -91,15 +108,30 @@ export async function applyEntry (state, entry, { policy }) {
     }
     case 'claim-free': {
       // La cuenta pide «un nombre»; cuál, lo elige el directorio. Por eso la petición no lleva `h`.
-      if (state.names.has(h)) fail('name-taken', 'name taken')
-      if (state.freeOf.has(entry.account)) fail('already-has-free', 'account already has its free name')
+      const own = state.freeOf.get(entry.account)
+      const ownRec = own && state.names.get(own)?.account === entry.account ? state.names.get(own) : null
+      if (ownRec && !ownRec.held) fail('already-has-free', 'account already has its free name')
+      // Si su nombre caducado sigue guardado, recupera ESE: no se cambia de nombre dejando de usarlo.
+      if (ownRec && ownRec.held && ts <= ownRec.exp && h !== own) fail('must-recover', 'the account must get back its held name')
+      if (!takeable(state, h, ts, entry.account)) fail('name-taken', 'name taken')
       await request(state, marks, reqs[0], { ts, account: entry.account, op: 'claim-free', extra: { account: entry.account } })
-      next = { account: entry.account, exp: null, free: true }
+      next = { account: entry.account, exp: ts + INACTIVITY_MS, free: true }
+      freeOf = [entry.account, h]
+      break
+    }
+    case 'touch': {
+      // La señal de vida: la manda el pilar solo, firmada por un aparato de la cuenta.
+      const rec = needLive(state, h, ts)
+      if (!rec.free) fail('not-free', 'only a free name needs a sign of life')
+      if (state.freeOf.get(rec.account) !== h) fail('bad-entry', 'not the free name of that account')
+      if (ts - (rec.exp - INACTIVITY_MS) < TOUCH_INTERVAL_MS) fail('too-soon', 'a sign of life was recorded recently')
+      await request(state, marks, reqs[0], { ts, account: rec.account, op: 'touch', extra: { account: rec.account } })
+      next = { account: rec.account, exp: ts + INACTIVITY_MS, free: true }
       break
     }
     case 'renew': {
-      const rec = needLive(state, h)
-      if (rec.free) fail('free-name-fixed', 'a free name does not expire')
+      const rec = needLive(state, h, ts)
+      if (rec.free) fail('free-name-fixed', 'a free name is kept alive by use, not paid')
       if (ts > rec.exp + GRACE_MS) fail('name-expired', 'past the grace period: claim it again')
       // Vencido pero en gracia: solo el dueño. Antes de vencer, cualquiera puede pagarlo.
       if (ts > rec.exp) await request(state, marks, reqs[0], { ts, account: rec.account, op: 'renew', h })
@@ -108,7 +140,7 @@ export async function applyEntry (state, entry, { policy }) {
       break
     }
     case 'transfer': {
-      const rec = needLive(state, h)
+      const rec = needLive(state, h, ts)
       if (rec.free) fail('free-name-fixed', 'a free name cannot be transferred')
       if (ts > rec.exp) fail('name-expired', 'an expired name cannot be transferred')
       if (typeof entry.account !== 'string' || entry.account === rec.account) fail('bad-entry', 'transfer needs another account')
@@ -118,21 +150,32 @@ export async function applyEntry (state, entry, { policy }) {
       break
     }
     case 'release': {
-      const rec = needLive(state, h)
+      const rec = needLive(state, h, ts)
       if (rec.free) fail('free-name-fixed', 'a free name cannot be released')
       await request(state, marks, reqs[0], { ts, account: rec.account, op: 'release', h })
       next = null
       break
     }
     case 'expire': {
-      const rec = needLive(state, h)
-      if (rec.free) fail('free-name-fixed', 'a free name does not expire')
-      if (ts <= rec.exp + GRACE_MS) fail('not-expired', 'still within its time or grace period')
-      next = null
+      // No lleva firma: cualquiera la puede escribir, y solo entra si de verdad toca.
+      const rec = state.names.get(h)
+      if (!rec) fail('name-not-found', 'name not found')
+      if (rec.held) {
+        // Pasada la reserva, el par vuelve a quedar libre del todo.
+        if (ts <= rec.exp) fail('not-expired', 'still held for its account')
+        next = null
+        if (state.freeOf.get(rec.account) === h) freeOf = [rec.account, null]
+      } else if (rec.free) {
+        if (ts <= rec.exp) fail('not-expired', 'the account showed signs of life')
+        next = { account: rec.account, exp: ts + QUARANTINE_MS, free: true, held: true }
+      } else {
+        if (ts <= rec.exp + GRACE_MS) fail('not-expired', 'still within its time or grace period')
+        next = null
+      }
       break
     }
     case 'seize': {
-      const rec = needLive(state, h)
+      const rec = needLive(state, h, ts)
       if (typeof entry.account !== 'string' || !entry.account) fail('bad-entry', 'seize needs the receiving account')
       if (typeof entry.reason !== 'string' || !entry.reason.trim()) fail('bad-entry', 'seize needs a reason')
       const v = await request(state, marks, reqs[0], { ts, account: null, op: 'seize', h, extra: { to: entry.account, reason: entry.reason } })
@@ -140,7 +183,7 @@ export async function applyEntry (state, entry, { policy }) {
       if (rec.free) {
         // A quien le quitan su nombre gratuito se le da otro en la misma entrada: nunca se queda sin.
         const r = entry.replacement
-        if (!HEX64.test(r || '') || state.names.has(r) || r === h) fail('bad-entry', 'seizing a free name needs a free replacement')
+        if (!HEX64.test(r || '') || r === h || !takeable(state, r, ts, null)) fail('bad-entry', 'seizing a free name needs a free replacement')
         replacement = { h: r, account: rec.account }
       }
       next = { account: entry.account, exp: rec.free ? ts + YEAR_MS : rec.exp, free: false }
@@ -150,16 +193,21 @@ export async function applyEntry (state, entry, { policy }) {
 
   // Lo que la entrada DICE que queda tiene que ser exactamente lo que sale de las reglas. Si el
   // nombre queda libre, la entrada no dice dueño.
-  const declared = { account: entry.account ?? null, exp: entry.exp ?? null, free: !!entry.free }
-  const actual = next ? { account: next.account, exp: next.exp, free: next.free } : { account: null, exp: null, free: false }
+  const declared = { account: entry.account ?? null, exp: entry.exp ?? null, free: !!entry.free, held: !!entry.held }
+  const actual = next ? { account: next.account, exp: next.exp, free: next.free, held: !!next.held } : { account: null, exp: null, free: false, held: false }
   if (canonicalStringify(declared) !== canonicalStringify(actual)) fail('entry-mismatch', 'entry does not match what the rules give')
+
   // A partir de aquí ya no falla nada: se escribe.
   // Lo que caducó ya no hace falta para frenar repeticiones: su firma tampoco valdría.
   for (const [k, exp] of state.seen) if (exp < ts) state.seen.delete(k)
   for (const [k, exp] of marks) state.seen.set(k, exp)
-  if (entry.op === 'claim-free') state.freeOf.set(entry.account, h)
+  if (orphan && orphan !== next?.account) state.freeOf.delete(orphan)
+  if (freeOf) {
+    if (freeOf[1]) state.freeOf.set(freeOf[0], freeOf[1])
+    else state.freeOf.delete(freeOf[0])
+  }
   if (replacement) {
-    state.names.set(replacement.h, { account: replacement.account, exp: null, free: true })
+    state.names.set(replacement.h, { account: replacement.account, exp: ts + INACTIVITY_MS, free: true })
     state.freeOf.set(replacement.account, replacement.h)
   }
   if (next) state.names.set(h, next)
@@ -168,7 +216,7 @@ export async function applyEntry (state, entry, { policy }) {
 }
 
 /** La hoja del estado de un nombre. */
-export const stateLeafData = (h, rec) => ({ h, account: rec.account, exp: rec.exp, free: rec.free })
+export const stateLeafData = (h, rec) => ({ h, account: rec.account, exp: rec.exp, free: rec.free, held: !!rec.held })
 
 async function stateLeaves (state) {
   const hs = [...state.names.keys()].sort()
