@@ -11,6 +11,7 @@ import { Identity } from '@dotrino/identity'
 import { pubkeyId } from '@dotrino/identity/keyid'
 import { Store } from '@dotrino/store'
 import { get, post, signedRequest, nameHash, ApiError } from './api.js'
+import { INACTIVITY_MS, TOUCH_INTERVAL_MS } from '@dotrino/names/constants'
 import { detectLang, messages } from './i18n.js'
 
 const PENDING_KEY = 'names.pending' // el cobro a medias mientras se va y se vuelve de PayPal
@@ -66,9 +67,12 @@ async function loadMine () {
   const req = await signedRequest(identity.value, { op: 'mine', account: account.value })
   const list = await post('/mine', { req })
   names.value = list.sort((a, b) => (a.free === b.free ? a.name.localeCompare(b.name) : a.free ? -1 : 1))
-  // La señal de vida del nombre gratis. Si entró hace poco, el directorio dice `too-soon` y no pasa nada.
+  // La señal de vida del nombre gratis. Solo si la última entró hace más de lo que el directorio
+  // exige entre dos (`TOUCH_INTERVAL_MS`): la fecha de vencimiento dice cuándo fue la última.
   const f = names.value.find((n) => n.free && !n.held)
-  if (f) post('/touch', { req: await signedRequest(identity.value, { op: 'touch', account: account.value }) }).catch(() => {})
+  if (f && Date.now() - (f.exp - INACTIVITY_MS) >= TOUCH_INTERVAL_MS) {
+    post('/touch', { req: await signedRequest(identity.value, { op: 'touch', account: account.value }) }).catch(() => {})
+  }
 }
 
 async function act (fn) {
