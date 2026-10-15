@@ -35,6 +35,7 @@ export function checkPolicy (policy) {
     throw new NamesError('no-policy', 'policy.directoryAccount is required')
   }
   if (!Array.isArray(policy.authorities)) throw new NamesError('no-policy', 'policy.authorities is required')
+  if (policy.directoryNs != null && typeof policy.directoryNs !== 'string') throw new NamesError('no-policy', 'policy.directoryNs must be a string')
   return policy
 }
 
@@ -42,11 +43,12 @@ export function checkPolicy (policy) {
  * `signed` = `{ body, signature, publickey, chain }`, lo que da `identity.signData(body)`.
  * Devuelve lo del pilar más `account`, la huella de la cuenta que firmó.
  */
-export async function verifySigned (signed, { now } = {}) {
+export async function verifySigned (signed, { now, ns = null } = {}) {
   if (!signed || typeof signed !== 'object' || !signed.body) return { ok: false, reason: 'shape' }
   if (!Number.isFinite(now)) throw new TypeError('now is required')
   const { body, signature, publickey, chain } = signed
-  const v = await verifySignedFor({ data: body, signature, publickey, chain, audience: AUDIENCE, now })
+  // `ns`: solo para lo firmado por un SERVICIO (el directorio); lo de la persona va sin él.
+  const v = await verifySignedFor({ data: body, signature, publickey, chain, audience: AUDIENCE, ns, now })
   if (!v.ok) return v
   return { ...v, account: await accountId(v.profileId) }
 }
@@ -54,7 +56,7 @@ export async function verifySigned (signed, { now } = {}) {
 /** Lo firmado por el directorio: tiene que ser de `policy.directoryAccount` y del tipo esperado. */
 export async function verifyDirectorySigned (signed, { policy, kind, now }) {
   checkPolicy(policy)
-  const v = await verifySigned(signed, { now })
+  const v = await verifySigned(signed, { now, ns: policy.directoryNs ?? null })
   if (!v.ok) throw new NamesError('bad-directory-signature', `directory signature: ${v.reason}`)
   if (!matchesAccount(v.account, policy.directoryAccount)) throw new NamesError('bad-directory-signature', 'not signed by the directory account')
   if (signed.body.kind !== kind) throw new NamesError('bad-kind', `expected ${kind}, got ${signed.body.kind}`)
