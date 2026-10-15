@@ -18,10 +18,10 @@
     "test": "node --test test/*.test.mjs"
   },
   "peerDependencies": {
-    "@dotrino/identity": ">=0.111.0"
+    "@dotrino/identity": ">=0.113.0"
   },
   "devDependencies": {
-    "@dotrino/identity": "0.111.0"
+    "@dotrino/identity": "0.113.0"
   },
   "engines": {
     "node": ">=20"
