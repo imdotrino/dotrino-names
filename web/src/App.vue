@@ -13,6 +13,7 @@ import { Store } from '@dotrino/store'
 import { get, post, signedRequest, nameHash, ApiError } from './api.js'
 import { INACTIVITY_MS, TOUCH_INTERVAL_MS } from '@dotrino/names/constants'
 import { detectLang, messages } from './i18n.js'
+import { sendRequest } from './feedback.js'
 
 const PENDING_KEY = 'names.pending' // el cobro a medias mientras se va y se vuelve de PayPal
 const PROFILE_URL = 'https://profile.dotrino.com/'
@@ -181,6 +182,19 @@ async function finishPayment () {
   })
 }
 
+// ----- otra forma de pago: se pide a Dotrino, firmado, como «Solicita una app» en el home -----
+const payMethod = ref('')
+const payState = ref('idle') // idle | sending | sent | error
+async function askPayMethod () {
+  const text = payMethod.value.trim()
+  if (!text || payState.value === 'sending') return
+  payState.value = 'sending'
+  try {
+    await sendRequest(identity.value, { text: `Otra forma de pago: ${text}`, app: 'names', locale: lang.value })
+    payState.value = 'sent'
+  } catch (e) { console.warn('[names] pay-method request', e?.code || '', e?.message || e); payState.value = 'error' }
+}
+
 // ----- versiones (§14): la de la página y la del servidor que está corriendo -----
 const pageCommit = document.querySelector('meta[name=commit]')?.content || 'dev'
 const serverVersion = ref('')
@@ -296,6 +310,16 @@ onMounted(async () => {
         </p>
         <p v-if="price" class="price" data-testid="price">{{ t.reserve.price(price) }}</p>
         <button class="btn" :disabled="!canPay" @click="checkout('claim', check.name, years)" data-testid="pay">{{ busy ? t.reserve.paying : t.reserve.pay }}</button>
+      </section>
+
+      <section class="card" data-testid="pay-method">
+        <h2>{{ t.payMethod.title }}</h2>
+        <form class="row wrap-row" @submit.prevent="askPayMethod">
+          <input v-model="payMethod" :placeholder="t.payMethod.placeholder" maxlength="200" :disabled="payState === 'sending' || payState === 'sent'" data-testid="pay-method-input" />
+          <button type="submit" class="btn" :disabled="!payMethod.trim() || payState === 'sending' || payState === 'sent'" data-testid="pay-method-send">{{ payState === 'sending' ? t.payMethod.sending : t.payMethod.send }}</button>
+        </form>
+        <p v-if="payState === 'sent'" class="notice ok" role="status" data-testid="pay-method-notice">{{ t.payMethod.sent }}</p>
+        <p v-else-if="payState === 'error'" class="notice error" role="status" data-testid="pay-method-notice">{{ t.payMethod.failed }}</p>
       </section>
     </template>
 

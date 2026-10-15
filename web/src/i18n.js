@@ -78,6 +78,13 @@ export const messages = {
       'name-expired': 'El nombre ya venció del todo: resérvalo de nuevo.',
       generic: 'No se pudo. Inténtalo de nuevo.'
     },
+    payMethod: {
+      title: 'Solicitar otra forma de pago',
+      placeholder: '¿Con qué te gustaría pagar?',
+      send: 'Solicitar', sending: 'Enviando…',
+      sent: 'Recibido. Te leemos.',
+      failed: 'No se pudo enviar. Inténtalo de nuevo.'
+    },
     footer: { page: 'página', server: 'servidor', wiki: 'Cómo funciona' }
   },
   en: {
@@ -146,6 +153,13 @@ export const messages = {
       'bad-entry': 'That device name is not valid: letters, digits and hyphens only.',
       'name-expired': 'The name has fully expired: reserve it again.',
       generic: 'It did not work. Try again.'
+    },
+    payMethod: {
+      title: 'Request another way to pay',
+      placeholder: 'How would you like to pay?',
+      send: 'Request', sending: 'Sending…',
+      sent: 'Received. We read every request.',
+      failed: 'Could not send. Try again.'
     },
     footer: { page: 'page', server: 'server', wiki: 'How it works' }
   }
