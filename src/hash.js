@@ -1,11 +1,17 @@
 /**
  * SHA-256 con WebCrypto: el mismo código corre en Node (≥ 20), en el navegador y en el proxio.
  */
-import { canonicalStringify } from '@dotrino/identity/vault/core.js'
+import { canonicalStringify as canonical } from '@dotrino/identity/vault/core.js'
 
 const enc = new TextEncoder()
 
-export { canonicalStringify }
+/**
+ * El JSON canónico de lo que se guarda y se hashea. Primero pasa por JSON (lo mismo que va al
+ * disco): una clave con `undefined` desaparece en los dos lados. Sin esto, una reserva nativa
+ * (`proof: undefined`) se hasheaba en memoria con `"proof":undefined` y al rearrancar, leída
+ * del disco sin esa clave, la cadena no cuadraba (`bad-prev`, 2026-10-15).
+ */
+export const canonicalStringify = (v) => canonical(v === undefined ? null : JSON.parse(JSON.stringify(v)))
 
 export async function sha256 (bytes) {
   const data = typeof bytes === 'string' ? enc.encode(bytes) : bytes

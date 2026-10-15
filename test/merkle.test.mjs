@@ -42,3 +42,12 @@ test('cada árbol es el principio del siguiente, y uno cambiado no lo es', async
     }
   }
 })
+
+test('una clave con undefined no cambia el hash: en memoria y leído del disco es lo mismo', async () => {
+  const { hashObject } = await import('../src/hash.js')
+  const { entryLeaf } = await import('../src/log.js')
+  const e = { v: 1, seq: 4, op: 'claim', proof: undefined, h: 'x' }
+  const stored = JSON.parse(JSON.stringify(e))
+  assert.equal(await hashObject(e), await hashObject(stored))
+  assert.equal(await entryLeaf(e), await entryLeaf(stored))
+})
