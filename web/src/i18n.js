@@ -14,6 +14,7 @@ export const messages = {
   es: {
     title: 'Tu nombre en Dotrino',
     intro: 'Un nombre que lleva a tu cuenta, en vez del código de letras y números. Puedes pedir uno gratis o reservar el que quieras.',
+    introFree: 'Un nombre que lleva a tu cuenta, en vez del código de letras y números. Puedes pedir uno gratis.',
     loading: 'Cargando…',
     needProfile: 'Para tener un nombre hace falta tu perfil de Dotrino en este navegador.',
     openProfile: 'Abrir mi perfil',
@@ -90,6 +91,7 @@ export const messages = {
   en: {
     title: 'Your name in Dotrino',
     intro: 'A name that leads to your account, instead of the letters-and-numbers code. Ask for a free one or reserve the one you want.',
+    introFree: 'A name that leads to your account, instead of the letters-and-numbers code. Ask for a free one.',
     loading: 'Loading…',
     needProfile: 'To have a name you need your Dotrino profile in this browser.',
     openProfile: 'Open my profile',

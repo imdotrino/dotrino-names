@@ -14,6 +14,12 @@ import { get, post, signedRequest, nameHash, ApiError } from './api.js'
 import { INACTIVITY_MS, TOUCH_INTERVAL_MS } from '@dotrino/names/constants'
 import { detectLang, messages } from './i18n.js'
 import { sendRequest } from './feedback.js'
+import { noDonations } from '@dotrino/support/policy'
+
+// Dentro de la app iOS no se cobra nada: ni reservar, ni renovar, ni pedir otra forma de pago.
+// App Review no admite vender un servicio digital fuera de In-App Purchase (3.1.1, 2026-10-15).
+// La regla la decide @dotrino/support, la pieza de monetización del ecosistema.
+const noPay = noDonations()
 
 const PENDING_KEY = 'names.pending' // el cobro a medias mientras se va y se vuelve de PayPal
 const PROFILE_URL = 'https://profile.dotrino.com/'
@@ -218,7 +224,7 @@ onMounted(async () => {
 
   <main class="wrap">
     <h1>{{ t.title }}</h1>
-    <p class="intro">{{ t.intro }}</p>
+    <p class="intro">{{ noPay ? t.introFree : t.intro }}</p>
 
     <p v-if="phase === 'loading'" class="muted" data-testid="loading">{{ t.loading }}</p>
 
@@ -240,7 +246,7 @@ onMounted(async () => {
         <article v-for="n in names" :key="n.h" class="name" :data-name="n.name" data-testid="name">
           <header>
             <strong>{{ n.name }}</strong>
-            <span class="tag">{{ n.free ? t.name.free : n.kind === 'domain' ? t.name.domain : t.name.paid }}</span>
+            <span v-if="n.free || !noPay" class="tag">{{ n.free ? t.name.free : n.kind === 'domain' ? t.name.domain : t.name.paid }}</span>
           </header>
           <p class="muted">
             <template v-if="n.held">{{ t.name.held }} {{ fmtDate(n.exp) }}</template>
@@ -253,8 +259,10 @@ onMounted(async () => {
 
           <template v-else>
             <div v-if="!n.free" class="row wrap-row">
-              <label>{{ t.name.renewYears }} <input type="number" min="1" max="100" v-model.number="renewYears[n.h]" :placeholder="1" data-testid="renew-years" /></label>
-              <button class="btn" :disabled="busy" @click="checkout('renew', n.name, Number(renewYears[n.h]) || 1)" data-testid="renew">{{ t.name.renew }}</button>
+              <template v-if="!noPay">
+                <label>{{ t.name.renewYears }} <input type="number" min="1" max="100" v-model.number="renewYears[n.h]" :placeholder="1" data-testid="renew-years" /></label>
+                <button class="btn" :disabled="busy" @click="checkout('renew', n.name, Number(renewYears[n.h]) || 1)" data-testid="renew">{{ t.name.renew }}</button>
+              </template>
               <template v-if="releasing === n.h">
                 <span class="warn">{{ t.name.releaseSure }}</span>
                 <button class="btn danger" :disabled="busy" @click="release(n)" data-testid="release-yes">{{ t.name.releaseYes }}</button>
@@ -292,7 +300,7 @@ onMounted(async () => {
         <button class="btn" :disabled="busy" @click="askFree" data-testid="ask-free">{{ t.free.button }}</button>
       </section>
 
-      <section class="card" data-testid="reserve">
+      <section v-if="!noPay" class="card" data-testid="reserve">
         <h2>{{ t.reserve.title }}</h2>
         <p>{{ t.reserve.text }}</p>
         <div class="row wrap-row">
@@ -315,7 +323,7 @@ onMounted(async () => {
         <button class="btn" :disabled="!canPay" @click="checkout('claim', check.name, years)" data-testid="pay">{{ busy ? t.reserve.paying : t.reserve.pay }}</button>
       </section>
 
-      <section class="card" data-testid="pay-method">
+      <section v-if="!noPay" class="card" data-testid="pay-method">
         <h2>{{ t.payMethod.title }}</h2>
         <form class="row wrap-row" @submit.prevent="askPayMethod">
           <input v-model="payMethod" :placeholder="t.payMethod.placeholder" maxlength="200" :disabled="payState === 'sending' || payState === 'sent'" data-testid="pay-method-input" />
