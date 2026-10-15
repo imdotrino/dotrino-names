@@ -1,13 +1,10 @@
 :root {
-  --bg: #0f1a24; --card: #16242f; --line: #24384a; --text: #e8f0f6; --muted: #9db0c0;
-  --accent: #4aa8d8; --accent-ink: #06202e; --ok: #3ccf8e; --err: #ff7a7a; --warn: #ffcf66;
+  /* Colores del ecosistema (@dotrino/theme, CONVENCIONES §5). */
+  --bg: var(--dt-bg); --card: var(--dt-surface); --line: var(--dt-line-soft); --text: var(--dt-text); --muted: var(--dt-text-dim);
+  --accent: var(--dt-accent); --accent-ink: var(--dt-accent-ink); --ok: var(--dt-ok); --err: var(--dt-error); --warn: var(--dt-busy);
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
-dotrino-topbar {
-  --dotrino-topbar-bg: var(--bg); --dotrino-topbar-border: var(--line);
-  --dotrino-topbar-text: var(--text); --dotrino-topbar-muted: var(--muted); --dotrino-topbar-accent: var(--accent);
-}
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--dt-font); }
 .wrap { max-width: 720px; margin: 0 auto; padding: 1rem 1rem calc(2rem + env(safe-area-inset-bottom)); }
 h1 { font-size: clamp(1.4rem, 4vw, 2rem); margin: .5rem 0 .25rem; }
 h2 { font-size: 1.1rem; margin: 0 0 .5rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
@@ -27,9 +24,9 @@ h2 { font-size: 1.1rem; margin: 0 0 .5rem; display: flex; align-items: center; j
 .devices summary { cursor: pointer; color: var(--accent); }
 .devices ul { list-style: none; padding: 0; margin: .5rem 0; }
 .devices li { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .25rem 0; }
-code { background: #0b141c; padding: .1rem .35rem; border-radius: 6px; word-break: break-all; }
+code { background: var(--dt-surface-2); padding: .1rem .35rem; border-radius: 6px; word-break: break-all; }
 input, select {
-  background: #0b141c; color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+  background: var(--dt-surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
   padding: .55rem .7rem; font: inherit; min-width: 0;
 }
 input[type=number] { width: 5rem; }
@@ -41,13 +38,13 @@ label { color: var(--muted); display: inline-flex; align-items: center; gap: .4r
 }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
-.btn.danger { background: var(--err); color: #2a0606; }
+.btn.danger { background: var(--dt-error-soft); color: var(--dt-error-ink); }
 .btn.small { padding: .3rem .6rem; font-size: .85rem; font-weight: 500; }
 .notice { padding: .7rem .9rem; border-radius: 10px; border: 1px solid var(--line); }
 .notice.ok { border-color: var(--ok); color: var(--ok); }
 .notice.error { border-color: var(--err); color: var(--err); }
 .warn { color: var(--warn); }
-.hint { background: #0b141c; border-radius: 10px; padding: .6rem .8rem; }
+.hint { background: var(--dt-surface-2); border-radius: 10px; padding: .6rem .8rem; }
 .price { font-weight: 600; }
 footer { margin-top: 2rem; text-align: center; }
 footer a { color: var(--accent); }

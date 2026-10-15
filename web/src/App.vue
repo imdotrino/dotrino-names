@@ -218,7 +218,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <dotrino-topbar ref="topbar" brand="Nombres" icon="./icon.svg" brand-href="https://dotrino.com/" no-back profile
+  <dotrino-topbar ref="topbar" brand="Nombres" icon="./icon.svg" brand-href="https://dotrino.com/" no-back profile theme
     support-repo="imdotrino/dotrino-names" support-discord="https://discord.gg/D648uq7cth"
     :lang.attr="lang" @dotrino-lang="onLang"></dotrino-topbar>
 
