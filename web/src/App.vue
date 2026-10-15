@@ -154,11 +154,11 @@ const renewYears = ref({}) // h → años
 /** La vuelta de PayPal: `/paid?token=<pedido>`. Se captura, se canjea el recibo y se registra. */
 async function finishPayment () {
   const token = new URLSearchParams(location.search).get('token')
-  if (!token) { try { sessionStorage.removeItem(PENDING_KEY) } catch (_) {} return }
+  if (!token) { try { sessionStorage.removeItem(PENDING_KEY) } catch (_) {} return false }
   history.replaceState(null, '', './')
   let pending = null
   try { pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null') } catch (_) {}
-  if (!pending || pending.orderId !== token) { say('error', t.value.paid.lost); return }
+  if (!pending || pending.orderId !== token) { say('error', t.value.paid.lost); return true }
   say('ok', t.value.paid.working)
   await act(async () => {
     let receipt
@@ -180,6 +180,7 @@ async function finishPayment () {
     }
     try { sessionStorage.removeItem(PENDING_KEY) } catch (_) {}
   })
+  return true
 }
 
 // ----- otra forma de pago: se pide a Dotrino, firmado, como «Solicita una app» en el home -----
@@ -203,8 +204,10 @@ get('/version').then((v) => { serverVersion.value = v.version }).catch(() => {})
 onMounted(async () => {
   await connect()
   if (phase.value !== 'ready') return
-  await finishPayment()
-  if (!busy.value) await act(async () => {})
+  // Si se volvió de PayPal, `finishPayment` ya cargó los nombres y dejó su aviso en
+  // pantalla; otra pasada de `act` lo borraría («Listo: … es tuyo» desaparecía).
+  if (await finishPayment()) return
+  await act(async () => {})
 })
 </script>
 
