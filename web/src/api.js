@@ -8,6 +8,7 @@
  */
 import { FORMAT_V, AUDIENCE, REQUEST_TTL_MS } from '@dotrino/names/constants'
 import { nameHash, normalizeName } from '@dotrino/names/name'
+import { signedFor } from '@dotrino/identity/assertion'
 
 const BASE = (import.meta.env.VITE_NAMES_URL || '').replace(/\/$/, '')
 
@@ -30,13 +31,14 @@ async function call (method, path, body) {
 export const get = (path) => call('GET', path)
 export const post = (path, body) => call('POST', path, body)
 
-/** Una petición firmada: `{ body, signature, publickey, chain }`, como la espera el directorio. */
+/** Una petición firmada: `{ body, signature, publickey, chain }`, como la espera el directorio. La firma el pilar. */
 export async function signedRequest (identity, fields) {
-  const iat = Date.now()
-  const body = { v: FORMAT_V, aud: AUDIENCE, iat, exp: iat + REQUEST_TTL_MS, nonce: crypto.randomUUID(), ...fields }
-  const s = await identity.signData(body)
-  if (!s?.chain?.length) throw new ApiError('no-chain', 'this device cannot prove it belongs to the account')
-  return { body, signature: s.signature, publickey: s.publickey, chain: s.chain }
+  try {
+    return await signedFor(identity, { aud: AUDIENCE, ttlMs: REQUEST_TTL_MS, fields: { v: FORMAT_V, ...fields } })
+  } catch (e) {
+    if (e?.code === 'no-chain') throw new ApiError('no-chain', e.message)
+    throw e
+  }
 }
 
 export { nameHash, normalizeName }
