@@ -16,7 +16,7 @@ import { verifyDnsTxt } from '@dotrino/verifier'
 import { watchForUpdate } from '@dotrino/update'
 import { Store } from './store.js'
 import { Directory } from './directory.js'
-import { paypalClient } from './paypal.js'
+import { paypalClient } from '@dotrino/pay'
 import { makeHandler } from './http.js'
 import { loadDirectoryIdentity, loadSecrets, enrollDirectory, info } from './identity.js'
 

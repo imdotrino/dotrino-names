@@ -15,6 +15,7 @@
   "dependencies": {
     "@dotrino/identity": "0.116.0",
     "@dotrino/names": "file:..",
+    "@dotrino/pay": "0.1.0",
     "@dotrino/remote-agent": "0.19.0",
     "@dotrino/update": "0.7.0",
     "@dotrino/vault": "0.86.0",

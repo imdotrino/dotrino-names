@@ -9,6 +9,7 @@
  * Las escrituras van en fila (una a la vez): dos peticiones a la vez sobre el mismo estado
  * darían dos entradas con el mismo `seq`.
  */
+import { priceWithTax } from '@dotrino/pay'
 import { randomUUID } from 'node:crypto'
 import {
   FORMAT_V, AUDIENCE, YEAR_MS, GRACE_MS, RECEIPT_TTL_MS, RETAINED_SEGMENTS, INACTIVITY_MS, QUARANTINE_MS, POLICY,
@@ -19,15 +20,12 @@ import { serializeState, deserializeState } from './store.js'
 
 const fail = (code, message) => { throw new NamesError(code, message) }
 
-/** USD 0,99 por año más IVA (15 % en Ecuador). En centavos, para no redondear dos veces. */
+/** USD 0,99 por año más IVA (15 % en Ecuador). La cuenta la hace `@dotrino/pay`. */
 export const PRICE_CENTS_PER_YEAR = 99
 export const TAX_PERCENT = 15
 export function priceFor (years) {
   if (!Number.isInteger(years) || years < 1 || years > 100) fail('bad-years', 'years must be an integer from 1 to 100')
-  const subtotal = PRICE_CENTS_PER_YEAR * years
-  const tax = Math.round(subtotal * TAX_PERCENT / 100)
-  const usd = (c) => (c / 100).toFixed(2)
-  return { subtotal: usd(subtotal), tax: usd(tax), total: usd(subtotal + tax) }
+  return priceWithTax({ unitCents: PRICE_CENTS_PER_YEAR, quantity: years, taxPercent: TAX_PERCENT })
 }
 
 export class Directory {

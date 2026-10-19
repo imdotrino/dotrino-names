@@ -53,7 +53,7 @@ const STATUS = {
   'name-not-found': 404, 'sub-not-found': 404, 'order-not-found': 404, 'entry-not-found': 404,
   'invalid-name': 400, 'reserved-name': 400, 'name-taken': 409, 'already-has-free': 409, 'must-recover': 409, 'replayed': 409, 'too-soon': 429,
   'bad-request-signature': 401, 'bad-directory-signature': 401, 'not-authority': 403,
-  'payments-unavailable': 503, 'domain-check-failed': 502, 'paypal-error': 502, 'payment-declined': 402,
+  'payments-unavailable': 503, 'domain-check-failed': 502, 'provider-error': 502, 'provider-not-found': 502, 'bad-id': 400, 'payment-declined': 402,
   'body-too-large': 413
 }
 
@@ -130,7 +130,7 @@ export function makeHandler ({ directory, version, product = '@dotrino/names-ser
       return json(res, 405, { code: 'method-not-allowed' })
     } catch (e) {
       const code = e?.code || 'internal'
-      if (code === 'internal' || code === 'paypal-error' || code === 'domain-check-failed') log(`[names] ${req.method} ${path}: ${e?.stack || e}`)
+      if (code === 'internal' || code === 'provider-error' || code === 'provider-not-found' || code === 'domain-check-failed') log(`[names] ${req.method} ${path}: ${e?.stack || e}`)
       else if (code === 'payment-declined') log(`[names] ${req.method} ${path}: ${e.message}`)
       return json(res, STATUS[code] || (code === 'internal' ? 500 : 400), { code, error: code === 'internal' ? 'internal error' : e.message })
     }
