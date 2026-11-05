@@ -15,6 +15,7 @@
  */
 import { NamesError } from './errors.js'
 import { sha256, toHex } from './hash.js'
+/** @import { NameKind } from './types.js' */
 
 export const DOMAIN = 'dotrino.com'
 
@@ -34,17 +35,32 @@ export const RESERVED = Object.freeze(new Set([
   'goat', 'index', 'app', 'api', 'mail', 'pass', 's', 'r', 'p', 'c'
 ]))
 
+/** @param {unknown} input */
 const bad = (input) => new NamesError('invalid-name', `invalid name: ${JSON.stringify(input)}`)
 
-/** Una etiqueta válida de entre `min` y `max` caracteres. */
+/**
+ * Una etiqueta válida de entre `min` y `max` caracteres.
+ * @param {unknown} s
+ * @param {number} [min]
+ * @param {number} [max]
+ * @returns {boolean}
+ */
 export function isLabel (s, min = 1, max = 63) {
   return typeof s === 'string' && s.length >= min && s.length <= max && LABEL.test(s)
 }
 
-/** ¿Es un nombre propio del directorio (`x.dotrino.com`)? */
+/**
+ * ¿Es un nombre propio del directorio (`x.dotrino.com`)?
+ * @param {string} name
+ * @returns {boolean}
+ */
 export const isNative = (name) => name.endsWith('.' + DOMAIN) && name.split('.').length === 3
 
-/** Valida un nombre COMPLETO, sin aparato delante, y dice de qué clase es. */
+/**
+ * Valida un nombre COMPLETO, sin aparato delante, y dice de qué clase es.
+ * @param {unknown} name
+ * @returns {NameKind}
+ */
 export function checkName (name) {
   if (typeof name !== 'string' || name.length > 253) throw bad(name)
   const labels = name.split('.')
@@ -58,14 +74,22 @@ export function checkName (name) {
   return 'domain'
 }
 
-/** Lo que escribe una persona, en minúsculas y con `.dotrino.com` si lo escribió corto. */
+/**
+ * Lo que escribe una persona, en minúsculas y con `.dotrino.com` si lo escribió corto.
+ * @param {unknown} input
+ * @returns {string}
+ */
 function expand (input) {
   if (typeof input !== 'string') throw bad(input)
   const s = input.trim().toLowerCase().replace(/\.$/, '')
   return s.includes('.') ? s : `${s}.${DOMAIN}`
 }
 
-/** Un nombre completo y válido, sin aparato: `blue-cat` → `blue-cat.dotrino.com`. */
+/**
+ * Un nombre completo y válido, sin aparato: `blue-cat` → `blue-cat.dotrino.com`.
+ * @param {unknown} input
+ * @returns {string}
+ */
 export function normalizeName (input) {
   const name = expand(input)
   checkName(name)
@@ -77,12 +101,16 @@ export function normalizeName (input) {
  * buscarlo. `laptop.empresa.com` puede ser el nombre `laptop.empresa.com` o el aparato
  * `laptop` de `empresa.com`, y solo el registro sabe cuál existe; con `.dotrino.com` no hay
  * duda.
+ * @param {unknown} input
+ * @returns {{ name: string, sub: string | null }[]}
  */
 export function addressCandidates (input) {
   const full = expand(input)
+  /** @type {{ name: string, sub: string | null }[]} */
   const out = []
+  /** @param {string} name @param {string | null} sub */
   const tryOne = (name, sub) => {
-    try { checkName(name); out.push({ name, sub }) } catch (e) { if (e.code === 'reserved-name' && !out.length) throw e }
+    try { checkName(name); out.push({ name, sub }) } catch (e) { if (e instanceof NamesError && e.code === 'reserved-name' && !out.length) throw e }
   }
   if (full.endsWith('.' + DOMAIN) && full.split('.').length === 4) {
     const [sub, ...rest] = full.split('.')
@@ -99,7 +127,11 @@ export function addressCandidates (input) {
   return out
 }
 
-/** `h` del registro: el hash del nombre completo, no el nombre (§3.1). */
+/**
+ * `h` del registro: el hash del nombre completo, no el nombre (§3.1).
+ * @param {unknown} input
+ * @returns {Promise<string>}
+ */
 export async function nameHash (input) {
   return toHex(await sha256('dotrino-names/v1:' + normalizeName(input)))
 }

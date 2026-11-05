@@ -3,6 +3,10 @@
  * frase (la frase se puede traducir o mejorar sin romper a nadie).
  */
 export class NamesError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} [message]
+   */
   constructor (code, message = code) {
     super(message)
     this.name = 'NamesError'
@@ -10,4 +14,10 @@ export class NamesError extends Error {
   }
 }
 
+/**
+ * Lanza un `NamesError`.
+ * @param {string} code
+ * @param {string} [message]
+ * @returns {never}
+ */
 export const fail = (code, message) => { throw new NamesError(code, message) }

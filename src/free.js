@@ -12,7 +12,12 @@ import { NamesError } from './errors.js'
 
 export { adjectives, nouns }
 
-/** Un entero uniforme en [0, n), sin el sesgo del módulo. */
+/**
+ * Un entero uniforme en [0, n), sin el sesgo del módulo.
+ * @param {number} n
+ * @param {RandomFill} random
+ * @returns {number}
+ */
 function uniform (n, random) {
   const limit = Math.floor(0x100000000 / n) * n
   const buf = new Uint32Array(1)
@@ -22,9 +27,19 @@ function uniform (n, random) {
   }
 }
 
+/**
+ * Rellena el búfer con bytes al azar (por defecto, `crypto.getRandomValues`).
+ * @typedef {(buf: Uint32Array) => unknown} RandomFill
+ */
+
+/** @type {RandomFill} */
 const defaultRandom = (buf) => globalThis.crypto.getRandomValues(buf)
 
-/** Un par al azar; con `suffix`, además un número del 2 al 99 (`blue-cat-7`). */
+/**
+ * Un par al azar; con `suffix`, además un número del 2 al 99 (`blue-cat-7`).
+ * @param {{ suffix?: boolean, random?: RandomFill }} [opts]
+ * @returns {string}
+ */
 export function randomPair ({ suffix = false, random = defaultRandom } = {}) {
   const name = adjectives[uniform(adjectives.length, random)] + '-' + nouns[uniform(nouns.length, random)]
   return normalizeName(suffix ? `${name}-${2 + uniform(98, random)}` : name)
@@ -33,6 +48,10 @@ export function randomPair ({ suffix = false, random = defaultRandom } = {}) {
 /**
  * Busca un par libre. `isTaken(name)` lo responde quien tiene el registro. Primero sin número;
  * si tras `tries` intentos todos estaban ocupados, con número.
+ */
+/**
+ * @param {{ isTaken?: (name: string) => boolean | Promise<boolean>, tries?: number, random?: RandomFill }} [opts]  `isTaken` es obligatorio: sin él, lanza
+ * @returns {Promise<string>}
  */
 export async function pickFreeName ({ isTaken, tries = 32, random = defaultRandom } = {}) {
   if (typeof isTaken !== 'function') throw new TypeError('isTaken is required')

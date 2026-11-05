@@ -14,48 +14,70 @@ import { canonicalStringify } from './hash.js'
 import { leafHash, root, inclusionProof } from './merkle.js'
 import { checkPolicy, verifySigned, verifyDirectorySigned, matchesAccount, isActaMember } from './verify.js'
 import { isLabel } from './name.js'
+/** @import { State, Entry, NameRecord, Policy, Signed, StateLeaf, StateProof, NameKind } from './types.js' */
 
 const enc = new TextEncoder()
+/** @typedef {[key: string, exp: number]} Mark  lo usado (nonce o recibo) y hasta cuándo frena repeticiones */
 const HEX64 = /^[0-9a-f]{64}$/
 /** Hasta cuántos subdominios de aparato puede tener un nombre: cada uno engorda su hoja. */
 export const MAX_SUBS = 32
+/** @type {readonly NameKind[]} */
 export const KINDS = Object.freeze(['native', 'domain'])
 
 export const OPS = Object.freeze(['claim', 'claim-free', 'touch', 'sub', 'renew', 'transfer', 'release', 'expire', 'seize'])
 
+/** @returns {State} */
 export function emptyState () {
   // names: h → { account, exp, free, kind, held?, subs? }  (subs: aparato → huella de su llave)   ·   freeOf: cuenta → su h gratuito (vivo o guardado)
   // seen: nonces de peticiones y ids de recibos ya usados, con su caducidad (anti-repetición)
   return { names: new Map(), freeOf: new Map(), seen: new Map() }
 }
 
+/**
+ * @param {State} s
+ * @returns {State}
+ */
 export function cloneState (s) {
   return { names: new Map(s.names), freeOf: new Map(s.freeOf), seen: new Map(s.seen) }
 }
 
-/** Comprueba una petición firmada por una cuenta. La marca de usada se apunta en `marks`. */
+/**
+ * Comprueba una petición firmada por una cuenta. La marca de usada se apunta en `marks`.
+ * @param {State} state
+ * @param {Mark[]} marks
+ * @param {Signed | undefined} req
+ * @param {{ ts: number, account: string | null | undefined, op: string, h?: string, extra?: Record<string, unknown> }} opts
+ */
 async function request (state, marks, req, { ts, account, op, h, extra = {} }) {
   const v = await verifySigned(req, { now: ts })
-  if (!v.ok) fail('bad-request-signature', `${op}: ${v.reason}`)
+  // `!req` no puede pasar con `v.ok`: está para que el tipo lo sepa.
+  if (!v.ok || !req) fail('bad-request-signature', `${op}: ${v.ok ? 'shape' : v.reason}`)
   if (account !== null && v.account !== account) fail('bad-request-signature', `${op}: signed by another account`)
   const b = req.body
   if (b.v !== FORMAT_V) fail('bad-version', `${op}: request version ${b.v}`)
   if (b.op !== op) fail('request-mismatch', `${op}: request is for ${b.op}`)
   if (h !== undefined && b.h !== h) fail('request-mismatch', `${op}: request is for another name`)
   for (const [k, val] of Object.entries(extra)) if (b[k] !== val) fail('request-mismatch', `${op}: request ${k} differs`)
-  if (!Number.isFinite(b.exp)) fail('bad-request', `${op}: request without exp`)
+  if (typeof b.exp !== 'number' || !Number.isFinite(b.exp)) fail('bad-request', `${op}: request without exp`)
   if (typeof b.nonce !== 'string' || b.nonce.length < 16) fail('bad-request', `${op}: request without nonce`)
   if (state.seen.has('n:' + b.nonce) || marks.some(([k]) => k === 'n:' + b.nonce)) fail('replayed', `${op}: request already used`)
   marks.push(['n:' + b.nonce, b.exp])
   return v
 }
 
-/** Comprueba un recibo de pago del directorio y devuelve los años. */
+/**
+ * Comprueba un recibo de pago del directorio y devuelve los años.
+ * @param {State} state
+ * @param {Mark[]} marks
+ * @param {Signed | undefined} rcpt
+ * @param {{ ts: number, policy: Policy }} opts
+ * @returns {Promise<number>}
+ */
 async function receipt (state, marks, rcpt, { ts, policy }) {
   const b = await verifyDirectorySigned(rcpt, { policy, kind: 'receipt', now: ts })
-  if (!Number.isInteger(b.years) || b.years < 1) fail('bad-receipt', 'receipt without years')
+  if (typeof b.years !== 'number' || !Number.isInteger(b.years) || b.years < 1) fail('bad-receipt', 'receipt without years')
   if (typeof b.id !== 'string' || b.id.length < 16) fail('bad-receipt', 'receipt without id')
-  if (!Number.isFinite(b.exp)) fail('bad-receipt', 'receipt without exp')
+  if (typeof b.exp !== 'number' || !Number.isFinite(b.exp)) fail('bad-receipt', 'receipt without exp')
   if (state.seen.has('r:' + b.id)) fail('replayed', 'receipt already used')
   marks.push(['r:' + b.id, b.exp])
   return b.years
@@ -67,6 +89,11 @@ async function receipt (state, marks, rcpt, { ts, policy }) {
  * sale a mirar el DNS, y la deja escrita en la entrada con cuándo la vio: un testigo no puede
  * repetir una consulta al DNS de hace un mes, así que en esto se fía de la cabecera firmada.
  */
+/**
+ * @param {Entry} entry
+ * @param {string | null | undefined} account
+ * @param {number} ts
+ */
 function domainProof (entry, account, ts) {
   const p = entry.proof
   if (!p || p.kind !== 'dns-txt') fail('no-domain-proof', 'a domain name needs proof that the domain is yours')
@@ -74,12 +101,21 @@ function domainProof (entry, account, ts) {
   if (!Number.isFinite(p.ts) || p.ts > ts || ts - p.ts > DAY_MS) fail('bad-domain-proof', 'the domain proof is stale')
 }
 
-/** Lo que se queda al cambiar de dueño: nada de lo de antes, ni sus aparatos. */
+/**
+ * Lo que se queda al cambiar de dueño: nada de lo de antes, ni sus aparatos.
+ * @param {NameRecord} rec
+ * @param {NameRecord} next
+ * @returns {NameRecord}
+ */
 const keep = (rec, next) => (rec.subs ? { ...next, subs: rec.subs } : next)
 
 /**
  * El registro VIVO de un nombre. Un gratuito caducado sigue en el estado `held` (guardado para
  * su cuenta, §5.1 del diseño), pero no resuelve ni se opera: para lo demás, no existe.
+ * @param {State} state
+ * @param {string} h
+ * @param {number} ts
+ * @returns {NameRecord}
  */
 function needLive (state, h, ts) {
   const rec = state.names.get(h)
@@ -88,7 +124,14 @@ function needLive (state, h, ts) {
   return rec
 }
 
-/** ¿Lo puede tomar `account` ahora? Libre, o guardado y ya pasada su reserva, o guardado para ella. */
+/**
+ * ¿Lo puede tomar `account` ahora? Libre, o guardado y ya pasada su reserva, o guardado para ella.
+ * @param {State} state
+ * @param {string} h
+ * @param {number} ts
+ * @param {string | null | undefined} account
+ * @returns {boolean}
+ */
 function takeable (state, h, ts, account) {
   const rec = state.names.get(h)
   if (!rec) return true
@@ -100,6 +143,10 @@ function takeable (state, h, ts, account) {
  * Aplica una entrada a `state` y devuelve el registro resultante del nombre, o `null` si el
  * nombre quedó libre. Lanza `NamesError` con su `code` si la entrada no vale, y entonces NO
  * toca el estado: primero se comprueba todo y solo al final se escribe.
+ * @param {State} state
+ * @param {Entry} entry
+ * @param {{ policy: Policy }} opts
+ * @returns {Promise<NameRecord | null>}
  */
 export async function applyEntry (state, entry, { policy }) {
   checkPolicy(policy)
@@ -111,9 +158,13 @@ export async function applyEntry (state, entry, { policy }) {
   const reqs = Array.isArray(entry.reqs) ? entry.reqs : []
 
   const h = entry.h
+  /** @type {Mark[]} */
   const marks = [] // [clave, caducidad] de lo usado, para no aceptarlo dos veces
+  /** @type {NameRecord | null | undefined} */
   let next // el registro del nombre después de la entrada; null = libre
+  /** @type {{ h: string, account: string } | null} */
   let replacement = null // nombre gratuito nuevo para quien pierde el suyo por un `seize`
+  /** @type {[string, string | null] | null} */
   let freeOf = null // [cuenta, h | null]: cambio en el índice de gratuitos
   // Si se toma un par guardado de otra cuenta (ya pasada su reserva), esa cuenta deja de tenerlo.
   const prior = state.names.get(h)
@@ -122,7 +173,10 @@ export async function applyEntry (state, entry, { policy }) {
   switch (entry.op) {
     case 'claim': {
       if (!takeable(state, h, ts, null)) fail('name-taken', 'name taken')
-      if (!KINDS.includes(entry.kind)) fail('bad-entry', 'claim needs the kind of name')
+      if (!entry.kind || !KINDS.includes(entry.kind)) fail('bad-entry', 'claim needs the kind of name')
+      // Sin esto, una entrada con `account: null` se saltaba la comprobación de quién firma
+      // (`request` trata `null` como «cualquiera», que es lo de `seize`) y dejaba un nombre sin dueño.
+      if (typeof entry.account !== 'string' || !entry.account) fail('bad-entry', 'claim needs the account')
       await request(state, marks, reqs[0], { ts, account: entry.account, op: 'claim', h, extra: { account: entry.account } })
       if (entry.kind === 'domain') domainProof(entry, entry.account, ts)
       const years = await receipt(state, marks, entry.receipt, { ts, policy })
@@ -131,6 +185,8 @@ export async function applyEntry (state, entry, { policy }) {
     }
     case 'claim-free': {
       // La cuenta pide «un nombre»; cuál, lo elige el directorio. Por eso la petición no lleva `h`.
+      // Con `account: null` la petición la podía firmar cualquiera (como en `claim`).
+      if (typeof entry.account !== 'string' || !entry.account) fail('bad-entry', 'claim-free needs the account')
       const own = state.freeOf.get(entry.account)
       const ownRec = own && state.names.get(own)?.account === entry.account ? state.names.get(own) : null
       if (ownRec && !ownRec.held) fail('already-has-free', 'account already has its free name')
@@ -158,8 +214,8 @@ export async function applyEntry (state, entry, { policy }) {
       // la llave de ESE aparato, que tiene que ser miembro del acta de la cuenta. Quien lo
       // resuelve vuelve a comprobar el acta: si el aparato se quitó, el subdominio no le sirve.
       const rec = needLive(state, h, ts)
-      if (!isLabel(entry.sub, 1, 32)) fail('bad-entry', 'invalid device label')
-      if (entry.device !== null && !HEX64.test(entry.device || '')) fail('bad-entry', 'device must be a key fingerprint or null')
+      if (typeof entry.sub !== 'string' || !isLabel(entry.sub, 1, 32)) fail('bad-entry', 'invalid device label')
+      if (entry.device !== null && (typeof entry.device !== 'string' || !HEX64.test(entry.device))) fail('bad-entry', 'device must be a key fingerprint or null')
       await request(state, marks, reqs[0], { ts, account: rec.account, op: 'sub', h, extra: { sub: entry.sub, device: entry.device } })
       if (entry.device !== null && !(await isActaMember(reqs[0].chain, entry.device))) fail('not-a-member', 'that device is not in the account record')
       const subs = { ...(rec.subs || {}) }
@@ -227,7 +283,7 @@ export async function applyEntry (state, entry, { policy }) {
       if (rec.free) {
         // A quien le quitan su nombre gratuito se le da otro en la misma entrada: nunca se queda sin.
         const r = entry.replacement
-        if (!HEX64.test(r || '') || r === h || !takeable(state, r, ts, null)) fail('bad-entry', 'seizing a free name needs a free replacement')
+        if (typeof r !== 'string' || !HEX64.test(r) || r === h || !takeable(state, r, ts, null)) fail('bad-entry', 'seizing a free name needs a free replacement')
         replacement = { h: r, account: rec.account }
       }
       next = { account: entry.account, exp: rec.free ? ts + YEAR_MS : rec.exp, free: false, kind: rec.kind }
@@ -259,22 +315,41 @@ export async function applyEntry (state, entry, { policy }) {
   return next
 }
 
-/** La hoja del estado de un nombre. */
+/**
+ * La hoja del estado de un nombre.
+ * @param {string} h
+ * @param {NameRecord} rec
+ * @returns {StateLeaf}
+ */
 export const stateLeafData = (h, rec) => ({ h, account: rec.account, exp: rec.exp, free: rec.free, kind: rec.kind, held: !!rec.held, subs: rec.subs || {} })
 
+/**
+ * @param {State} state
+ * @returns {Promise<{ hs: string[], leaves: string[] }>}
+ */
 async function stateLeaves (state) {
-  const hs = [...state.names.keys()].sort()
+  const recs = [...state.names].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  const hs = recs.map(([h]) => h)
   const leaves = []
-  for (const h of hs) leaves.push(await leafHash(enc.encode(canonicalStringify(stateLeafData(h, state.names.get(h))))))
+  for (const [h, rec] of recs) leaves.push(await leafHash(enc.encode(canonicalStringify(stateLeafData(h, rec)))))
   return { hs, leaves }
 }
 
-/** La raíz del estado: cada nombre vivo ordenado por `h`. */
+/**
+ * La raíz del estado: cada nombre vivo ordenado por `h`.
+ * @param {State} state
+ * @returns {Promise<string>}
+ */
 export async function stateRoot (state) {
   return root((await stateLeaves(state)).leaves)
 }
 
-/** La prueba de que el nombre `h` está en el estado, con su registro. */
+/**
+ * La prueba de que el nombre `h` está en el estado, con su registro.
+ * @param {State} state
+ * @param {string} h
+ * @returns {Promise<StateProof>}
+ */
 export async function stateProof (state, h) {
   const rec = state.names.get(h)
   if (!rec) throw new NamesError('name-not-found', 'name not found')

@@ -6,7 +6,13 @@
  */
 export const FEEDBACK_URL = 'https://feedback.dotrino.com'
 
+/**
+ * @param {{ me?: { publickey?: string, nickname?: string } | null, signData (data: object): Promise<string | { signature?: string }> } | null | undefined} identity
+ * @param {{ text: string, app: string, locale: string }} req
+ * @returns {Promise<void>}
+ */
 export async function sendRequest (identity, { text, app, locale }) {
+  /** @param {string} why */
   const unsigned = (why) => Object.assign(new Error(`request: ${why}`), { code: 'unsigned' })
   const pubkey = identity?.me?.publickey || ''
   if (!identity || !pubkey) throw unsigned('no identity on this page')

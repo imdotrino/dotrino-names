@@ -10,7 +10,8 @@
   },
   "scripts": {
     "start": "node server.js serve",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "type-check": "tsc --noEmit -p ."
   },
   "dependencies": {
     "@dotrino/identity": "0.135.0",
@@ -23,5 +24,9 @@
   },
   "engines": {
     "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3"
   }
 }

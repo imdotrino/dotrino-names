@@ -11,13 +11,22 @@ import { canonicalStringify, hashObject } from './hash.js'
 import { leafHash, root, inclusionProof, consistencyProof } from './merkle.js'
 import { applyEntry, cloneState, stateRoot } from './state.js'
 import { verifyDirectorySigned } from './verify.js'
+/** @import { Entry, LoggedEntry, State, Policy, Signed, CheckpointBody, HeadBody } from './types.js' */
 
 const enc = new TextEncoder()
 
-/** La hoja de una entrada: su JSON canónico entero. */
+/**
+ * La hoja de una entrada: su JSON canónico entero.
+ * @param {Entry} entry
+ * @returns {Promise<string>}
+ */
 export const entryLeaf = (entry) => leafHash(enc.encode(canonicalStringify(entry)))
 
-/** El hash que encadena un corte con el siguiente. */
+/**
+ * El hash que encadena un corte con el siguiente.
+ * @param {CheckpointBody} body
+ * @returns {Promise<string>}
+ */
 export const checkpointHash = (body) => hashObject(body)
 
 /**
@@ -26,14 +35,22 @@ export const checkpointHash = (body) => hashObject(body)
  * anterior.
  */
 export class Segment {
+  /** @param {{ n: number, firstSeq: number, baseHash: string | null }} args */
   constructor ({ n, firstSeq, baseHash }) {
     this.n = n
     this.firstSeq = firstSeq
     this.baseHash = baseHash
+    /** @type {LoggedEntry[]} */
     this.entries = []
+    /** @type {string[]} */
     this.leaves = []
   }
 
+  /**
+   * El tramo que sigue al corte `checkpoint` (o el primero, con `null`).
+   * @param {CheckpointBody | null | undefined} checkpoint
+   * @returns {Promise<Segment>}
+   */
   static async after (checkpoint) {
     if (!checkpoint) return new Segment({ n: 0, firstSeq: 0, baseHash: null })
     return new Segment({ n: checkpoint.n + 1, firstSeq: checkpoint.firstSeq + checkpoint.segmentSize, baseHash: await checkpointHash(checkpoint) })
@@ -43,7 +60,11 @@ export class Segment {
   get nextSeq () { return this.firstSeq + this.entries.length }
   get head () { return this.leaves.length ? this.leaves[this.leaves.length - 1] : this.baseHash }
 
-  /** Añade una entrada ya validada contra el estado. Comprueba su sitio en la cadena. */
+  /**
+   * Añade una entrada ya validada contra el estado. Comprueba su sitio en la cadena.
+   * @param {LoggedEntry} entry
+   * @returns {Promise<string>} la hoja
+   */
   async append (entry) {
     if (entry.seq !== this.nextSeq) fail('bad-seq', `expected seq ${this.nextSeq}, got ${entry.seq}`)
     if (entry.prev !== this.head) fail('bad-prev', 'entry does not chain with the previous one')
@@ -53,21 +74,33 @@ export class Segment {
     return leaf
   }
 
+  /** @returns {Promise<string>} */
   root () { return root(this.leaves) }
 
-  /** Prueba de inclusión de la entrada `seq`. */
+  /**
+   * Prueba de inclusión de la entrada `seq`.
+   * @param {number} seq
+   * @returns {Promise<{ index: number, size: number, leaf: string, proof: string[] }>}
+   */
   async inclusion (seq) {
     const i = seq - this.firstSeq
     if (!(i >= 0 && i < this.size)) throw new NamesError('entry-not-found', 'entry not in this segment')
     return { index: i, size: this.size, leaf: this.leaves[i], proof: await inclusionProof(i, this.leaves) }
   }
 
+  /**
+   * @param {number} oldSize
+   * @returns {Promise<string[]>}
+   */
   consistency (oldSize) { return consistencyProof(oldSize, this.leaves) }
 
   /**
    * La cabecera del tramo abierto, sin firmar: la firma el directorio con su identidad. Lleva
    * la raíz del ESTADO de ahora (`stateRoot`), para que una respuesta se pruebe contra el estado
    * vigente y no contra el corte del mes pasado. El testigo la comprueba al cerrar el tramo.
+   * @param {number} ts
+   * @param {string} stateRoot
+   * @returns {Promise<HeadBody>}
    */
   async headBody (ts, stateRoot) {
     if (!/^[0-9a-f]{64}$/.test(stateRoot || '')) throw new TypeError('headBody: stateRoot is required')
@@ -75,7 +108,11 @@ export class Segment {
   }
 }
 
-/** El cuerpo del corte que cierra `segment` con `state` (el estado tras su última entrada). */
+/**
+ * El cuerpo del corte que cierra `segment` con `state` (el estado tras su última entrada).
+ * @param {{ segment: Segment, state: State, ts: number }} args
+ * @returns {Promise<CheckpointBody>}
+ */
 export async function checkpointBody ({ segment, state, ts }) {
   return {
     v: FORMAT_V,
@@ -97,6 +134,8 @@ export async function checkpointBody ({ segment, state, ts }) {
  *
  * `prevCheckpoint` es el cuerpo del corte anterior (o `null` para el primero) y `checkpoint`
  * el corte FIRMADO que se quiere cofirmar.
+ * @param {{ prevCheckpoint: CheckpointBody | null, prevState: State, entries: LoggedEntry[], checkpoint: Signed, policy: Policy, now: number }} args
+ * @returns {Promise<{ state: State, body: Signed['body'] }>}
  */
 export async function replaySegment ({ prevCheckpoint, prevState, entries, checkpoint, policy, now }) {
   const body = await verifyDirectorySigned(checkpoint, { policy, kind: 'checkpoint', now })

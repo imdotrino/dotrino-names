@@ -15,6 +15,8 @@ import { INACTIVITY_MS, TOUCH_INTERVAL_MS } from '@dotrino/names/constants'
 import { detectLang, messages } from './i18n.js'
 import { sendRequest } from './feedback.js'
 import { noDonations } from '@dotrino/support/policy'
+/** @import { MineName, CheckResult, Price, PendingPayment } from './types.js' */
+/** @import { DotrinoTopbar } from '@dotrino/topbar' */
 
 // Dentro de la app iOS no se cobra nada: ni reservar, ni renovar, ni pedir otra forma de pago.
 // App Review no admite vender un servicio digital fuera de In-App Purchase (3.1.1, 2026-10-15).
@@ -27,15 +29,22 @@ const WIKI_URL = 'https://wiki.dotrino.com/desarrollo/servicios/'
 
 const lang = ref(detectLang())
 const t = computed(() => messages[lang.value])
+/** @param {CustomEvent<{ lang?: string }>} e */
 const onLang = (e) => { const l = e.detail?.lang; if (l === 'es' || l === 'en') lang.value = l }
 watchEffect(() => { document.documentElement.lang = lang.value })
 
 // ----- quién soy -----
-const identity = ref(null)
-const account = ref(null) // la huella de la cuenta (lo que el directorio llama `account`)
-const devices = ref([]) // [{ id, label }] los aparatos del acta, para los nombres por aparato
-const phase = ref('loading') // loading | no-profile | ready
-const topbar = ref(null)
+const identity = ref(/** @type {Identity | null} */ (null))
+const account = ref(/** @type {string | null} */ (null)) // la huella de la cuenta (lo que el directorio llama `account`)
+const devices = ref(/** @type {{ id: string, label: string }[]} */ ([])) // los aparatos del acta, para los nombres por aparato
+const phase = ref(/** @type {'loading' | 'no-profile' | 'ready'} */ ('loading'))
+const topbar = ref(/** @type {DotrinoTopbar | null} */ (null))
+
+/** La identidad, para firmar. Solo se firma con `phase === 'ready'`, que es cuando ya está. */
+function me () {
+  if (!identity.value) throw new ApiError('no-identity', 'no identity on this page')
+  return identity.value
+}
 
 async function connect () {
   phase.value = 'loading'
@@ -59,30 +68,38 @@ async function connect () {
 }
 
 // ----- mis nombres -----
-const names = ref([])
+const names = ref(/** @type {MineName[]} */ ([]))
 const busy = ref(false)
-const notice = ref(null) // { kind: 'ok' | 'error', text }
+const notice = ref(/** @type {{ kind: 'ok' | 'error', text: string } | null} */ (null))
+/**
+ * @param {'ok' | 'error'} kind
+ * @param {string} text
+ */
 const say = (kind, text) => { notice.value = { kind, text } }
-const retryUrl = ref(null) // PayPal rechazó el medio de pago: el mismo pedido, a elegir otro
-const errorText = (e) => t.value.errors[e?.code] || (e instanceof ApiError ? e.message : null) || t.value.errors.generic
+const retryUrl = ref(/** @type {string | null} */ (null)) // PayPal rechazó el medio de pago: el mismo pedido, a elegir otro
+/** @param {unknown} e */
+const errorText = (e) => t.value.errors[/** @type {{ code?: string } | null | undefined} */ (e)?.code ?? ''] || (e instanceof ApiError ? e.message : null) || t.value.errors.generic
 
+/** @param {number} ts */
 const fmtDate = (ts) => new Intl.DateTimeFormat(lang.value, { dateStyle: 'medium' }).format(new Date(ts))
+/** @param {string} n */
 const shortName = (n) => n.replace(/\.dotrino\.com$/, '')
 const freeName = computed(() => names.value.find((n) => n.free) || null)
 const canAskFree = computed(() => !freeName.value)
 
 async function loadMine () {
-  const req = await signedRequest(identity.value, { op: 'mine', account: account.value })
-  const list = await post('/mine', { req })
+  const req = await signedRequest(me(), { op: 'mine', account: account.value })
+  const list = /** @type {MineName[]} */ (await post('/mine', { req }))
   names.value = list.sort((a, b) => (a.free === b.free ? a.name.localeCompare(b.name) : a.free ? -1 : 1))
   // La señal de vida del nombre gratis. Solo si la última entró hace más de lo que el directorio
   // exige entre dos (`TOUCH_INTERVAL_MS`): la fecha de vencimiento dice cuándo fue la última.
   const f = names.value.find((n) => n.free && !n.held)
   if (f && Date.now() - (f.exp - INACTIVITY_MS) >= TOUCH_INTERVAL_MS) {
-    post('/touch', { req: await signedRequest(identity.value, { op: 'touch', account: account.value }) }).catch(() => {})
+    post('/touch', { req: await signedRequest(me(), { op: 'touch', account: account.value }) }).catch(() => {})
   }
 }
 
+/** @param {() => Promise<void>} fn */
 async function act (fn) {
   busy.value = true
   notice.value = null
@@ -92,35 +109,42 @@ async function act (fn) {
 
 async function askFree () {
   await act(async () => {
-    const req = await signedRequest(identity.value, { op: 'claim-free', account: account.value })
-    const r = await post('/claim-free', { req })
+    const req = await signedRequest(me(), { op: 'claim-free', account: account.value })
+    const r = /** @type {{ name: string }} */ (await post('/claim-free', { req }))
     say('ok', `${t.value.free.got} ${r.name}`)
   })
 }
 
+/** @param {MineName} n */
 async function release (n) {
   await act(async () => {
-    const req = await signedRequest(identity.value, { op: 'release', h: n.h })
+    const req = await signedRequest(me(), { op: 'release', h: n.h })
     await post('/release', { name: n.name, req })
     releasing.value = null
   })
 }
-const releasing = ref(null)
+const releasing = ref(/** @type {string | null} */ (null))
 
 // ----- aparatos con nombre -----
-const subForm = ref({}) // h → { label, device }
+const subForm = ref(/** @type {Record<string, { label: string, device: string }>} */ ({})) // h → { label, device }
+/** @param {string} id */
 const deviceLabel = (id) => devices.value.find((d) => d.id === id)?.label || t.value.name.unknownDevice
+/** @param {MineName} n */
 async function addSub (n) {
   const f = subForm.value[n.h] || {}
   await act(async () => {
-    const req = await signedRequest(identity.value, { op: 'sub', h: n.h, sub: String(f.label || '').trim().toLowerCase(), device: f.device || null })
+    const req = await signedRequest(me(), { op: 'sub', h: n.h, sub: String(f.label || '').trim().toLowerCase(), device: f.device || null })
     await post('/sub', { name: n.name, req })
     subForm.value[n.h] = { label: '', device: '' }
   })
 }
+/**
+ * @param {MineName} n
+ * @param {string} sub
+ */
 async function removeSub (n, sub) {
   await act(async () => {
-    const req = await signedRequest(identity.value, { op: 'sub', h: n.h, sub, device: null })
+    const req = await signedRequest(me(), { op: 'sub', h: n.h, sub, device: null })
     await post('/sub', { name: n.name, req })
   })
 }
@@ -128,10 +152,11 @@ async function removeSub (n, sub) {
 // ----- reservar (pagar) -----
 const wanted = ref('')
 const years = ref(1)
-const check = ref(null) // { name, kind, available } | { error }
+const check = ref(/** @type {CheckResult | null} */ (null))
 const checking = ref(false)
-const price = ref(null)
-let checkTimer = null
+const price = ref(/** @type {Price | null} */ (null))
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let checkTimer
 watch(wanted, (v) => {
   check.value = null
   clearTimeout(checkTimer)
@@ -139,29 +164,42 @@ watch(wanted, (v) => {
   if (!s) return
   checkTimer = setTimeout(async () => {
     checking.value = true
-    try { check.value = await get('/check/' + encodeURIComponent(s)) } catch (e) { check.value = { error: e.code } } finally { checking.value = false }
+    try { check.value = /** @type {CheckResult} */ (await get('/check/' + encodeURIComponent(s))) } catch (e) { check.value = { error: /** @type {{ code?: string }} */ (e).code } } finally { checking.value = false }
   }, 350)
 })
 watch(years, async (y) => {
   price.value = null
-  if (Number.isInteger(y) && y >= 1 && y <= 100) price.value = await get('/price?years=' + y).catch(() => null)
+  if (Number.isInteger(y) && y >= 1 && y <= 100) price.value = /** @type {Price | null} */ (await get('/price?years=' + y).catch(() => null))
 }, { immediate: true })
 const canPay = computed(() => check.value?.available && price.value && !busy.value)
 
+/**
+ * @param {'claim' | 'renew'} action
+ * @param {string} name
+ * @param {number} y
+ */
 async function checkout (action, name, y) {
   await act(async () => {
-    const r = await post('/checkout', { years: y })
+    const r = /** @type {{ orderId: string, approveUrl: string }} */ (await post('/checkout', { years: y }))
     try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ orderId: r.orderId, name, years: y, action, approveUrl: r.approveUrl })) } catch (_) {}
     location.href = r.approveUrl
   })
 }
-const renewYears = ref({}) // h → años
+const renewYears = ref(/** @type {Record<string, number>} */ ({})) // h → años
+
+/** «Pagar» del formulario de reservar: el botón solo se habilita con un nombre libre (`canPay`). */
+function payClaim () {
+  const c = check.value
+  if (!c?.available) return
+  checkout('claim', c.name, years.value)
+}
 
 /** La vuelta de PayPal: `/paid?token=<pedido>`. Se captura, se canjea el recibo y se registra. */
 async function finishPayment () {
   const token = new URLSearchParams(location.search).get('token')
   if (!token) { try { sessionStorage.removeItem(PENDING_KEY) } catch (_) {} return false }
   history.replaceState(null, '', './')
+  /** @type {PendingPayment | null} */
   let pending = null
   try { pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null') } catch (_) {}
   if (!pending || pending.orderId !== token) { say('error', t.value.paid.lost); return true }
@@ -169,19 +207,21 @@ async function finishPayment () {
   await act(async () => {
     let receipt
     try { receipt = await post('/capture', { orderId: token }) } catch (e) {
+      if (!pending) throw e
       // El medio de pago no pasó: el pedido sigue vivo en PayPal y se vuelve a él con otro.
       // El cobro a medias se queda guardado para esa vuelta.
-      if (e?.code === 'payment-declined' && pending.approveUrl) { retryUrl.value = pending.approveUrl; try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending)) } catch (_) {} }
+      if (/** @type {{ code?: string }} */ (e)?.code === 'payment-declined' && pending.approveUrl) { retryUrl.value = pending.approveUrl; try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending)) } catch (_) {} }
       throw e
     }
+    if (!pending) return
     const h = await nameHash(pending.name)
     if (pending.action === 'renew') {
-      const req = await signedRequest(identity.value, { op: 'renew', h })
-      const r = await post('/renew', { name: pending.name, req, receipt })
+      const req = await signedRequest(me(), { op: 'renew', h })
+      const r = /** @type {{ name: string }} */ (await post('/renew', { name: pending.name, req, receipt }))
       say('ok', t.value.paid.renewed(r.name))
     } else {
-      const req = await signedRequest(identity.value, { op: 'claim', h, account: account.value })
-      const r = await post('/claim', { name: pending.name, req, receipt })
+      const req = await signedRequest(me(), { op: 'claim', h, account: account.value })
+      const r = /** @type {{ name: string }} */ (await post('/claim', { name: pending.name, req, receipt }))
       say('ok', t.value.paid.claimed(r.name))
     }
     try { sessionStorage.removeItem(PENDING_KEY) } catch (_) {}
@@ -199,13 +239,16 @@ async function askPayMethod () {
   try {
     await sendRequest(identity.value, { text: `Otra forma de pago: ${text}`, app: 'names', locale: lang.value })
     payState.value = 'sent'
-  } catch (e) { console.warn('[names] pay-method request', e?.code || '', e?.message || e); payState.value = 'error' }
+  } catch (e) {
+    const err = /** @type {{ code?: string, message?: string } | null | undefined} */ (e)
+    console.warn('[names] pay-method request', err?.code || '', err?.message || e); payState.value = 'error'
+  }
 }
 
 // ----- versiones (§14): la de la página y la del servidor que está corriendo -----
-const pageCommit = document.querySelector('meta[name=commit]')?.content || 'dev'
+const pageCommit = /** @type {HTMLMetaElement | null} */ (document.querySelector('meta[name=commit]'))?.content || 'dev'
 const serverVersion = ref('')
-get('/version').then((v) => { serverVersion.value = v.version }).catch(() => {})
+get('/version').then((v) => { serverVersion.value = /** @type {{ version: string }} */ (v).version }).catch(() => {})
 
 onMounted(async () => {
   await connect()
@@ -260,7 +303,7 @@ onMounted(async () => {
           <template v-else>
             <div v-if="!n.free" class="row wrap-row">
               <template v-if="!noPay">
-                <label>{{ t.name.renewYears }} <input type="number" min="1" max="100" v-model.number="renewYears[n.h]" :placeholder="1" data-testid="renew-years" /></label>
+                <label>{{ t.name.renewYears }} <input type="number" min="1" max="100" v-model.number="renewYears[n.h]" placeholder="1" data-testid="renew-years" /></label>
                 <button class="btn" :disabled="busy" @click="checkout('renew', n.name, Number(renewYears[n.h]) || 1)" data-testid="renew">{{ t.name.renew }}</button>
               </template>
               <template v-if="releasing === n.h">
@@ -320,7 +363,7 @@ onMounted(async () => {
           <code data-testid="txt-value">dotrino-names={{ account }}</code>
         </p>
         <p v-if="price" class="price" data-testid="price">{{ t.reserve.price(price) }}</p>
-        <button class="btn" :disabled="!canPay" @click="checkout('claim', check.name, years)" data-testid="pay">{{ busy ? t.reserve.paying : t.reserve.pay }}</button>
+        <button class="btn" :disabled="!canPay" @click="payClaim" data-testid="pay">{{ busy ? t.reserve.paying : t.reserve.pay }}</button>
       </section>
 
       <section v-if="!noPay" class="card" data-testid="pay-method">

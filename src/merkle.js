@@ -8,13 +8,29 @@ import { sha256, toHex, fromHex, concat } from './hash.js'
 const LEAF = new Uint8Array([0])
 const NODE = new Uint8Array([1])
 
+/**
+ * @param {Uint8Array} bytes
+ * @returns {Promise<string>}
+ */
 export const leafHash = async (bytes) => toHex(await sha256(concat(LEAF, bytes)))
+/**
+ * @param {string} l
+ * @param {string} r
+ * @returns {Promise<string>}
+ */
 const nodeHash = async (l, r) => toHex(await sha256(concat(NODE, fromHex(l), fromHex(r))))
 
-/** La mayor potencia de 2 estrictamente menor que n (n ≥ 2). */
+/**
+ * La mayor potencia de 2 estrictamente menor que n (n ≥ 2).
+ * @param {number} n
+ */
 const split = (n) => { let k = 1; while (k * 2 < n) k *= 2; return k }
 
-/** MTH: la raíz de una lista de hashes de hoja. */
+/**
+ * MTH: la raíz de una lista de hashes de hoja.
+ * @param {string[]} leaves
+ * @returns {Promise<string>}
+ */
 export async function root (leaves) {
   if (leaves.length === 0) return toHex(await sha256(new Uint8Array(0)))
   if (leaves.length === 1) return leaves[0]
@@ -22,7 +38,12 @@ export async function root (leaves) {
   return nodeHash(await root(leaves.slice(0, k)), await root(leaves.slice(k)))
 }
 
-/** PATH(m, D[n]): la prueba de que la hoja m está en el árbol. */
+/**
+ * PATH(m, D[n]): la prueba de que la hoja m está en el árbol.
+ * @param {number} m
+ * @param {string[]} leaves
+ * @returns {Promise<string[]>}
+ */
 export async function inclusionProof (m, leaves) {
   if (!(m >= 0 && m < leaves.length)) throw new RangeError('leaf index out of range')
   if (leaves.length === 1) return []
@@ -32,7 +53,11 @@ export async function inclusionProof (m, leaves) {
     : [...await inclusionProof(m - k, leaves.slice(k)), await root(leaves.slice(0, k))]
 }
 
-/** RFC 9162 §2.1.3.2. */
+/**
+ * RFC 9162 §2.1.3.2.
+ * @param {{ index: number, size: number, leaf: string, proof: string[], root: string }} args
+ * @returns {Promise<boolean>}
+ */
 export async function verifyInclusion ({ index, size, leaf, proof, root: expected }) {
   if (!(Number.isInteger(index) && Number.isInteger(size) && index >= 0 && index < size)) return false
   let fn = index
@@ -51,6 +76,12 @@ export async function verifyInclusion ({ index, size, leaf, proof, root: expecte
   return sn === 0 && r === expected
 }
 
+/**
+ * @param {number} m
+ * @param {string[]} leaves
+ * @param {boolean} complete
+ * @returns {Promise<string[]>}
+ */
 async function subproof (m, leaves, complete) {
   const n = leaves.length
   if (m === n) return complete ? [] : [await root(leaves)]
@@ -60,14 +91,23 @@ async function subproof (m, leaves, complete) {
     : [...await subproof(m - k, leaves.slice(k), false), await root(leaves.slice(0, k))]
 }
 
-/** PROOF(m, D[n]): que el árbol de tamaño m es el principio del de tamaño n, sin cambios. */
+/**
+ * PROOF(m, D[n]): que el árbol de tamaño m es el principio del de tamaño n, sin cambios.
+ * @param {number} m
+ * @param {string[]} leaves
+ * @returns {Promise<string[]>}
+ */
 export async function consistencyProof (m, leaves) {
   if (!(m > 0 && m <= leaves.length)) throw new RangeError('bad consistency range')
   if (m === leaves.length) return []
   return subproof(m, leaves, true)
 }
 
-/** RFC 9162 §2.1.4.2. */
+/**
+ * RFC 9162 §2.1.4.2.
+ * @param {{ firstSize: number, secondSize: number, firstRoot: string, secondRoot: string, proof: string[] }} args
+ * @returns {Promise<boolean>}
+ */
 export async function verifyConsistency ({ firstSize, secondSize, firstRoot, secondRoot, proof }) {
   if (!(Number.isInteger(firstSize) && Number.isInteger(secondSize) && firstSize > 0 && firstSize <= secondSize)) return false
   if (firstSize === secondSize) return proof.length === 0 && firstRoot === secondRoot

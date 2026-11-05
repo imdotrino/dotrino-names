@@ -32,7 +32,10 @@ import { readFile, stat } from 'node:fs/promises'
 import nodePath from 'node:path'
 import { PROTOCOL, NamesError, normalizeName, checkName } from '@dotrino/names'
 import { priceFor } from './directory.js'
+/** @import { IncomingMessage, ServerResponse } from 'node:http' */
+/** @import { Directory, Body } from './directory.js' */
 
+/** @type {Record<string, string>} */
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml',
@@ -42,6 +45,11 @@ const MIME = {
 
 const MAX_BODY = 256 * 1024
 
+/**
+ * El cuerpo JSON de una petición, sin comprobar nada de lo que dice (lo comprueba el directorio).
+ * @param {IncomingMessage} req
+ * @returns {Promise<Body & Record<string, unknown>>}
+ */
 const readJson = (req) => new Promise((resolve, reject) => {
   let b = ''
   req.on('data', (c) => { b += c; if (b.length > MAX_BODY) { reject(new NamesError('body-too-large', 'body too large')); req.destroy() } })
@@ -49,6 +57,7 @@ const readJson = (req) => new Promise((resolve, reject) => {
   req.on('error', reject)
 })
 
+/** @type {Record<string, number>} */
 const STATUS = {
   'name-not-found': 404, 'sub-not-found': 404, 'order-not-found': 404, 'entry-not-found': 404,
   'invalid-name': 400, 'reserved-name': 400, 'name-taken': 409, 'already-has-free': 409, 'must-recover': 409, 'replayed': 409, 'too-soon': 429,
@@ -57,12 +66,31 @@ const STATUS = {
   'body-too-large': 413
 }
 
+/**
+ * @param {object} o
+ * @param {Directory} o.directory
+ * @param {string} o.version
+ * @param {string} [o.product]
+ * @param {string | null} [o.webDir]
+ * @param {(line: string) => void} [o.log]
+ * @returns {(req: IncomingMessage, res: ServerResponse) => Promise<void>}
+ */
 export function makeHandler ({ directory, version, product = '@dotrino/names-server', webDir = null, log = () => {} }) {
+  /**
+   * @param {ServerResponse} res
+   * @param {number} status
+   * @param {unknown} obj
+   */
   const json = (res, status, obj) => {
     res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' })
     res.end(JSON.stringify(obj))
   }
   // La página. Un archivo de `webDir` o nada: ni un paso fuera de ese directorio.
+  /**
+   * @param {ServerResponse} res
+   * @param {string} rel
+   * @returns {Promise<boolean>}
+   */
   const serveFile = async (res, rel) => {
     if (!webDir) return false
     const root = nodePath.resolve(webDir)
@@ -77,11 +105,13 @@ export function makeHandler ({ directory, version, product = '@dotrino/names-ser
     res.end(await readFile(file))
     return true
   }
+  /** @param {string} input */
   const check = async (input) => {
     const name = normalizeName(input)
     const kind = checkName(name)
     return { name, kind, available: !(await directory.taken(name)) }
   }
+  /** @type {Record<string, (b: Body & Record<string, unknown>) => Promise<unknown>>} */
   const routes = {
     'POST /mine': (b) => directory.mine(b),
     'POST /claim-free': (b) => directory.claimFree(b),
@@ -97,7 +127,8 @@ export function makeHandler ({ directory, version, product = '@dotrino/names-ser
   }
 
   return async function handle (req, res) {
-    const url = new URL(req.url, 'http://x')
+    // En una petición que llega a un `http.Server`, `url` siempre viene.
+    const url = new URL(/** @type {string} */ (req.url), 'http://x')
     const path = url.pathname.replace(/\/+$/, '') || '/'
     try {
       if (req.method === 'OPTIONS') return json(res, 204, {})
@@ -129,10 +160,11 @@ export function makeHandler ({ directory, version, product = '@dotrino/names-ser
       }
       return json(res, 405, { code: 'method-not-allowed' })
     } catch (e) {
-      const code = e?.code || 'internal'
-      if (code === 'internal' || code === 'provider-error' || code === 'provider-not-found' || code === 'domain-check-failed') log(`[names] ${req.method} ${path}: ${e?.stack || e}`)
-      else if (code === 'payment-declined') log(`[names] ${req.method} ${path}: ${e.message}`)
-      return json(res, STATUS[code] || (code === 'internal' ? 500 : 400), { code, error: code === 'internal' ? 'internal error' : e.message })
+      const err = /** @type {{ code?: string, message?: string, stack?: string } | null | undefined} */ (e)
+      const code = err?.code || 'internal'
+      if (code === 'internal' || code === 'provider-error' || code === 'provider-not-found' || code === 'domain-check-failed') log(`[names] ${req.method} ${path}: ${err?.stack || e}`)
+      else if (code === 'payment-declined') log(`[names] ${req.method} ${path}: ${err?.message}`)
+      return json(res, STATUS[code] || (code === 'internal' ? 500 : 400), { code, error: code === 'internal' ? 'internal error' : err?.message })
     }
   }
 }

@@ -256,3 +256,11 @@ test('resolver contra la cabecera de ahora: lleva la raíz del estado vigente', 
   const got = await verifyResolution({ address: 'ana', response: { name: 'ana.dotrino.com', head, state: await stateProof(r.state, await nameHash('ana')) }, policy: r.policy, now: T0 })
   assert.equal(got.account, ana.account)
 })
+
+test('un nombre sin cuenta no entra: `account: null` no es «cualquiera» al pedir', async () => {
+  const r = await registry({ dir })
+  const h = await nameHash('nadie')
+  await assert.rejects(r.add({ op: 'claim', ts: T0, h, account: null, exp: T0 + YEAR_MS, kind: 'native', reqs: [await req(ana, T0, { op: 'claim', h, account: null })], receipt: await receipt(dir, T0) }), { code: 'bad-entry' })
+  await assert.rejects(r.add({ op: 'claim-free', ts: T0, h, account: null, exp: T0 + INACTIVITY_MS, free: true, kind: 'native', reqs: [await req(ana, T0, { op: 'claim-free', account: null })] }), { code: 'bad-entry' })
+  assert.equal(r.state.names.size, 0)
+})

@@ -20,6 +20,7 @@ import { addressCandidates, nameHash } from './name.js'
 import { stateLeafData } from './state.js'
 import { verifyDirectorySigned } from './verify.js'
 import { GRACE_MS } from './constants.js'
+/** @import { Policy, ResolutionResponse, HeadBody, CheckpointBody, NameKind } from './types.js' */
 
 const enc = new TextEncoder()
 
@@ -27,16 +28,22 @@ const enc = new TextEncoder()
  * Devuelve `{ name, sub, account, device, exp, free, kind }`: `account` es la huella de la
  * cuenta y `device` la del aparato (o `null` si no se preguntó por uno). Quien lo usa
  * comprueba después el acta de esa cuenta: esto solo dice a quién apunta el nombre.
+ * @param {{ address: string, response: ResolutionResponse | null | undefined, policy: Policy, now: number }} args
+ * @returns {Promise<import('./types.js').Resolution>}
  */
 export async function verifyResolution ({ address, response, policy, now }) {
   const candidates = addressCandidates(address)
   const sub = response?.sub ?? null
-  if (!candidates.some((c) => c.name === response?.name && c.sub === sub)) fail('bad-resolution', 'response is for another name')
+  if (!response || !candidates.some((c) => c.name === response.name && c.sub === sub)) fail('bad-resolution', 'response is for another name')
   const h = await nameHash(response.name)
+  /** @type {{ account: string, exp: number, free: boolean, kind: NameKind, subs: Record<string, string> }} */
   let rec
   if (response.entry) {
-    const head = await verifyDirectorySigned(response.head, { policy, kind: 'head', now })
+    // Firmada por el directorio y de tipo `head`: tiene la forma de `Segment.headBody`.
+    const head = /** @type {HeadBody} */ (await verifyDirectorySigned(response.head, { policy, kind: 'head', now }))
     const { entry, inclusion } = response
+    // Sin prueba de inclusión, antes reventaba con un TypeError en vez de decir `bad-resolution`.
+    if (!inclusion) fail('bad-resolution', 'entry without inclusion proof')
     if (entry.h !== h) fail('bad-resolution', 'entry is for another name')
     if (entry.seq !== head.firstSeq + inclusion.index) fail('bad-resolution', 'entry seq does not match its place')
     const ok = await verifyInclusion({ index: inclusion.index, size: head.size, leaf: await entryLeaf(entry), proof: inclusion.proof, root: head.root })
@@ -44,11 +51,14 @@ export async function verifyResolution ({ address, response, policy, now }) {
     if (entry.op === 'release' || entry.op === 'expire') throw new NamesError('name-not-found', 'name was released or expired')
     // Una entrada solo trae los aparatos que ella misma cambia: para otro, hace falta el corte.
     if (sub !== null && !(entry.op === 'sub' && entry.sub === sub)) fail('bad-resolution', 'this entry does not say where that device is')
+    // Lo que no es `release` ni `expire` deja dueño (lo exigen las reglas de `applyEntry`).
+    if (typeof entry.account !== 'string' || typeof entry.exp !== 'number' || !entry.kind) fail('bad-resolution', 'entry without owner')
     rec = { account: entry.account, exp: entry.exp, free: !!entry.free, kind: entry.kind, subs: sub !== null && entry.device ? { [sub]: entry.device } : {} }
   } else if (response.checkpoint || response.head) {
-    const cp = response.checkpoint
+    // Firmado por el directorio y del tipo pedido: tiene la forma de un corte o una cabecera.
+    const cp = /** @type {CheckpointBody | HeadBody} */ (response.checkpoint
       ? await verifyDirectorySigned(response.checkpoint, { policy, kind: 'checkpoint', now })
-      : await verifyDirectorySigned(response.head, { policy, kind: 'head', now })
+      : await verifyDirectorySigned(response.head, { policy, kind: 'head', now }))
     const s = response.state
     if (s?.leaf?.h !== h) fail('bad-resolution', 'state leaf is for another name')
     const leaf = await leafHash(enc.encode(canonicalStringify(stateLeafData(h, s.leaf))))
@@ -57,7 +67,7 @@ export async function verifyResolution ({ address, response, policy, now }) {
     if (s.leaf.held) throw new NamesError('name-not-found', 'name expired and held for its account')
     rec = { account: s.leaf.account, exp: s.leaf.exp, free: !!s.leaf.free, kind: s.leaf.kind, subs: s.leaf.subs || {} }
   } else {
-    fail('bad-resolution', 'response has neither checkpoint nor entry')
+    return fail('bad-resolution', 'response has neither checkpoint nor entry')
   }
   // Vencido no resuelve: ni un pagado en su gracia (solo se puede renovar) ni un gratuito sin
   // señal de vida (su cuenta lo recupera al volver).

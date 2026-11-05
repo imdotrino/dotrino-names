@@ -10,17 +10,35 @@
 import { loadLink, clientLink, dataDir, renewLink, refreshChain, enroll } from '@dotrino/remote-agent/link'
 import { waitForSecrets } from '@dotrino/vault/service'
 import { formatDeviceInfo, deviceInfo } from '@dotrino/vault/device-info'
+/** @import { Signature } from '@dotrino/remote-agent/link' */
+
+/**
+ * La identidad del directorio ya cargada.
+ * @typedef {object} DirectoryIdentity
+ * @property {string | undefined} device  la llave pública del aparato
+ * @property {(data: object) => Promise<Signature>} signData
+ * @property {{ ns: string, proxyUrl: string, masterPubkey: string, device: unknown, cert: unknown, enc: unknown }} secretsArgs
+ */
 
 export const NS = 'names'
 export const LABEL = 'names'
 
+/** @returns {string} */
 export function identityDir () { return process.env.NAMES_DIR || dataDir('dotrino-names') }
 
+/**
+ * @param {string} invite
+ * @param {{ dir?: string }} [opts]
+ */
 export async function enrollDirectory (invite, { dir = identityDir() } = {}) {
   return enroll({ qr: invite, dir, label: LABEL, ns: NS })
 }
 
-/** Qué aparato es (CONVENCIONES §15.1): el ID primero. Sin red, del enlace del disco. */
+/**
+ * Qué aparato es (CONVENCIONES §15.1): el ID primero. Sin red, del enlace del disco.
+ * @param {{ dir?: string, json?: boolean }} [opts]
+ * @returns {Promise<string>}
+ */
 export async function info ({ dir = identityDir(), json = false } = {}) {
   const link = loadLink(dir)
   if (!link?.device?.publickey) throw Object.assign(new Error(`not enrolled (dir ${dir})`), { code: 'not-enrolled' })
@@ -28,7 +46,10 @@ export async function info ({ dir = identityDir(), json = false } = {}) {
   return json ? JSON.stringify(i, null, 2) : formatDeviceInfo(i)
 }
 
-/** @returns {Promise<{ signData:(d:object)=>Promise<{signature,publickey,chain}>, secretsArgs:object, device:string }>} */
+/**
+ * @param {{ dir?: string, log?: (line: string) => void }} [opts]
+ * @returns {Promise<DirectoryIdentity>}
+ */
 export async function loadDirectoryIdentity ({ dir = identityDir(), log = console.log } = {}) {
   const raw = loadLink(dir)
   if (!raw?.device?.privateJwk) {
@@ -54,7 +75,12 @@ export async function loadDirectoryIdentity ({ dir = identityDir(), log = consol
   }
 }
 
-/** Los secretos del cajón `names`. Espera a la bóveda: sin ella no se cobra. */
+/**
+ * Los secretos del cajón `names`. Espera a la bóveda: sin ella no se cobra.
+ * @param {DirectoryIdentity} identity
+ * @param {{ log?: (line: string) => void }} [opts]
+ * @returns {Promise<Record<string, string>>}
+ */
 export async function loadSecrets (identity, { log = console.log } = {}) {
   return waitForSecrets({ ...identity.secretsArgs, onRetry: (e, ms) => log(`[vault] ${e.message}; retry in ${Math.round(ms / 1000)}s`) })
 }

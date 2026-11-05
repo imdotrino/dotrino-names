@@ -13,7 +13,7 @@ import http from 'node:http'
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { verifyDnsTxt } from '@dotrino/verifier'
-import { watchForUpdate } from '@dotrino/update'
+import { watchDependencies } from '@dotrino/update/deps'
 import { Store } from './store.js'
 import { Directory } from './directory.js'
 import { paypalClient } from '@dotrino/pay'
@@ -21,10 +21,12 @@ import { makeHandler } from './http.js'
 import { loadDirectoryIdentity, loadSecrets, enrollDirectory, info } from './identity.js'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+/** @param {...unknown} a */
 const log = (...a) => console.log(new Date().toISOString(), ...a)
 const [cmd = 'serve', arg] = process.argv.slice(2)
 
 // Un fallo con código se dice en una línea, no con una pila: «not enrolled» es un estado, no un bug.
+/** @param {Error & { code?: string }} e */
 const die = (e) => { console.error(`dotrino-names: ${e.message}${e.code ? ` (${e.code})` : ''}`); process.exit(1) }
 
 if (cmd === 'info') {
@@ -59,6 +61,7 @@ if (cmd === 'info') {
   const sweep = () => directory.sweep().then((n) => n && log(`[names] expired ${n}`)).catch((e) => log(`[names] sweep: ${e.message}`))
   setInterval(sweep, 60 * 60 * 1000).unref()
   sweep()
+  /** @param {number} ts */
   const monthOf = (ts) => new Date(ts).toISOString().slice(0, 7)
   let month = monthOf(Date.now())
   setInterval(() => {
@@ -69,7 +72,10 @@ if (cmd === 'info') {
   }, 60 * 1000).unref()
   if (!directory.checkpoint) directory.closeSegment().catch((e) => log(`[names] first checkpoint: ${e.message}`))
 
-  watchForUpdate({ name: pkg.name, version: pkg.version, log }).catch?.(() => {})
+  // §15: el servidor se despliega desde git, así que lo que se queda atrás son sus pilares.
+  // Antes llamaba a `watchForUpdate` sin `source`, `pkg` ni `current`: no miraba nada, nunca.
+  // `@dotrino/names` va por `file:..` (es este mismo repo): no hay nada que mirar en npm.
+  watchDependencies({ dir: fileURLToPath(new URL('.', import.meta.url)), match: /^@dotrino\/(?!names$)/, name: 'names', log })
 } else {
   console.error('usage: dotrino-names serve | enroll <invite> | info [--json]')
   process.exit(2)

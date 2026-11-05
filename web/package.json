@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit -p ."
   },
   "dependencies": {
     "@dotrino/identity": "0.122.0",
@@ -20,7 +21,10 @@
   },
   "devDependencies": {
     "@dotrino/prerender": "0.1.0",
+    "@types/node": "22.20.1",
     "@vitejs/plugin-vue": "6.0.10",
-    "vite": "8.3.4"
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "vue-tsc": "3.3.13"
   }
 }

@@ -8,20 +8,24 @@
   "exports": {
     ".": "./src/index.js",
     "./name": "./src/name.js",
-    "./constants": "./src/constants.js"
+    "./constants": "./src/constants.js",
+    "./types": "./src/types.js"
   },
   "files": [
     "src",
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "type-check": "tsc --noEmit -p ."
   },
   "peerDependencies": {
     "@dotrino/identity": ">=0.114.1"
   },
   "devDependencies": {
-    "@dotrino/identity": "0.114.1"
+    "@dotrino/identity": "0.114.1",
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=20"
